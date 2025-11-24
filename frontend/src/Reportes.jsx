@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const URL_BACKEND = 'http://localhost:3000'; // CAMBIAR A HTTPS://... EN PRODUCCIÓN
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
 
 export default function Reportes() {
   const [datos, setDatos] = useState(null);
