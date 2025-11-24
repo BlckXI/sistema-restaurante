@@ -37,7 +37,7 @@ app.get('/platos', async (req, res) => {
     res.json(data);
 });
 
-// RUTA C: Crear Orden (Completa)
+// RUTA C: Crear Orden
 app.post('/ordenes', async (req, res) => {
     const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada } = req.body;
 
@@ -71,14 +71,8 @@ app.post('/ordenes', async (req, res) => {
         const { data: ordenData, error: ordenError } = await supabase
             .from('ordenes')
             .insert([{ 
-                cliente, 
-                total, 
-                detalles, 
-                tipo_entrega, 
-                direccion, 
-                telefono, 
-                numero_diario: numeroTicket,
-                hora_programada
+                cliente, total, detalles, tipo_entrega, direccion, telefono, 
+                numero_diario: numeroTicket, hora_programada
             }])
             .select();
 
@@ -109,18 +103,11 @@ app.post('/ordenes', async (req, res) => {
 });
 
 // --- RUTAS DE GASTOS ---
-
 app.post('/gastos', async (req, res) => {
     const { descripcion, monto } = req.body;
-    if (!descripcion || !monto || monto <= 0) {
-        return res.status(400).json({ error: "Datos inválidos: El monto debe ser mayor a 0" });
-    }
+    if (!descripcion || !monto || monto <= 0) return res.status(400).json({ error: "Datos inválidos" });
 
-    const { error } = await supabase
-        .from('gastos')
-        .insert([{ descripcion, monto }])
-        .select();
-
+    const { error } = await supabase.from('gastos').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "Gasto registrado" });
 });
@@ -132,90 +119,75 @@ app.delete('/gastos/:id', async (req, res) => {
     res.json({ message: "Gasto eliminado" });
 });
 
-// --- CONTROL DE ORDENES (ANULAR / COMPLETAR) ---
+// --- RUTAS DE INGRESOS EXTRAS (NUEVO) ---
+app.post('/ingresos-extras', async (req, res) => {
+    const { descripcion, monto } = req.body;
+    if (!descripcion || !monto || monto <= 0) return res.status(400).json({ error: "Datos inválidos" });
 
-// Marcar como LISTO (Cocina -> Repartidor/Mesero)
+    const { error } = await supabase.from('ingresos_extras').insert([{ descripcion, monto }]).select();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: "Ingreso extra registrado" });
+});
+
+app.delete('/ingresos-extras/:id', async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase.from('ingresos_extras').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: "Ingreso extra eliminado" });
+});
+
+// --- CONTROL DE ORDENES ---
 app.patch('/ordenes/:id/completar', async (req, res) => {
     const { id } = req.params;
-    // Actualizamos a 'listo'
-    const { data, error } = await supabase
-        .from('ordenes')
-        .update({ estado: 'listo' })
-        .eq('id', id)
-        .select(); // Devolvemos el dato actualizado para enviarlo por socket
-
+    const { data, error } = await supabase.from('ordenes').update({ estado: 'listo' }).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
-    
-    // AVISAMOS A TODOS (Especialmente al Repartidor)
     io.emit('orden_lista', data[0]); 
-    
     res.json({ message: 'Orden completada' });
 });
 
 app.patch('/ordenes/:id/anular', async (req, res) => {
     const { id } = req.params;
-
     try {
-        const { data: orden, error: errorOrden } = await supabase
-            .from('ordenes').select('*').eq('id', id).single();
-
-        if (errorOrden || !orden) return res.status(404).json({ error: "Orden no encontrada" });
-        if (orden.estado === 'anulado') return res.status(400).json({ error: "Ya está anulada" });
+        const { data: orden, error: errorOrden } = await supabase.from('ordenes').select('*').eq('id', id).single();
+        if (errorOrden || !orden) return res.status(404).json({ error: "No encontrada" });
+        if (orden.estado === 'anulado') return res.status(400).json({ error: "Ya anulada" });
 
         for (const item of orden.detalles) {
             const { data: plato } = await supabase.from('platos').select('stock').eq('id', item.id).single();
             if (plato) {
-                await supabase.from('platos')
-                    .update({ stock: plato.stock + item.cantidad }) 
-                    .eq('id', item.id);
+                await supabase.from('platos').update({ stock: plato.stock + item.cantidad }).eq('id', item.id);
             }
         }
-
-        const { error: updateError } = await supabase
-            .from('ordenes').update({ estado: 'anulado' }).eq('id', id);
-
+        const { error: updateError } = await supabase.from('ordenes').update({ estado: 'anulado' }).eq('id', id);
         if (updateError) throw updateError;
-        res.json({ message: "Orden anulada y stock restaurado" });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error al anular" });
-    }
+        res.json({ message: "Anulada" });
+    } catch (error) { res.status(500).json({ error: "Error al anular" }); }
 });
 
-// --- REPORTE FINANCIERO (CON SALDO INICIAL Y CIERRE) ---
-
+// --- REPORTE FINANCIERO COMPLETO ---
 app.get('/reportes/hoy', async (req, res) => {
     const hoy = new Date().toISOString().split('T')[0];
     
-    // 1. BUSCAR SALDO INICIAL (Cierre de ayer)
+    // 1. Saldo Inicial
     const { data: ultimoCierre } = await supabase
-        .from('cierres')
-        .select('monto_final')
-        .lt('fecha', hoy)
-        .order('fecha', { ascending: false })
-        .limit(1)
-        .single();
-    
+        .from('cierres').select('monto_final').lt('fecha', hoy).order('fecha', { ascending: false }).limit(1).single();
     const saldoInicial = ultimoCierre ? ultimoCierre.monto_final : 0;
 
-    // 2. Datos de hoy
+    // 2. Ordenes
     const { data: ordenes } = await supabase
-        .from('ordenes')
-        .select('*')
-        .gte('created_at', `${hoy}T00:00:00`)
-        .lte('created_at', `${hoy}T23:59:59`)
-        .order('id', { ascending: false });
+        .from('ordenes').select('*').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('id', { ascending: false });
 
+    // 3. Gastos
     const { data: gastos } = await supabase
-        .from('gastos')
-        .select('*')
-        .gte('created_at', `${hoy}T00:00:00`)
-        .lte('created_at', `${hoy}T23:59:59`)
-        .order('id', { ascending: false });
+        .from('gastos').select('*').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('id', { ascending: false });
 
-    let ingresoVentas = 0; // Cambié nombre para claridad
+    // 4. Ingresos Extras (NUEVO)
+    const { data: ingresosExtras } = await supabase
+        .from('ingresos_extras').select('*').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('id', { ascending: false });
+
+    let ingresoVentas = 0;
     let totalGastos = 0;
+    let totalIngresosExtras = 0; // Nuevo acumulador
     let totalAnulado = 0;
     let ordenesValidas = 0;
     const conteoPlatos = {};
@@ -233,9 +205,11 @@ app.get('/reportes/hoy', async (req, res) => {
     });
 
     if(gastos) gastos.forEach(g => totalGastos += g.monto);
+    if(ingresosExtras) ingresosExtras.forEach(i => totalIngresosExtras += i.monto); // Sumamos extras
 
-    // FÓRMULA MAESTRA: Saldo Ayer + Ventas Hoy - Gastos Hoy
-    const dineroEnCaja = saldoInicial + ingresoVentas - totalGastos;
+    // FÓRMULA MAESTRA ACTUALIZADA: 
+    // Saldo Ayer + Ventas Comida + Ingresos Extras - Gastos
+    const dineroEnCaja = saldoInicial + ingresoVentas + totalIngresosExtras - totalGastos;
 
     const rankingPlatos = Object.entries(conteoPlatos)
         .map(([nombre, cantidad]) => ({ nombre, cantidad }))
@@ -243,23 +217,23 @@ app.get('/reportes/hoy', async (req, res) => {
 
     res.json({
         saldoInicial: saldoInicial.toFixed(2),
-        ingresoVentas: ingresoVentas.toFixed(2), // Antes ingresoBruto
+        ingresoVentas: ingresoVentas.toFixed(2),
         totalGastos: totalGastos.toFixed(2),
-        dineroEnCaja: dineroEnCaja.toFixed(2), // Antes gananciaNeta
+        totalIngresosExtras: totalIngresosExtras.toFixed(2), // Enviamos al frontend
+        dineroEnCaja: dineroEnCaja.toFixed(2),
         totalAnulado: totalAnulado.toFixed(2),
         cantidadOrdenes: ordenesValidas,
         rankingPlatos,
         listaOrdenes: ordenes,
-        listaGastos: gastos || []
+        listaGastos: gastos || [],
+        listaIngresosExtras: ingresosExtras || [] // Enviamos lista
     });
 });
 
-// RUTA PARA CERRAR EL DÍA
+// RUTA CIERRE
 app.post('/cierre', async (req, res) => {
     const { fecha, monto } = req.body;
-    
     const { data: existe } = await supabase.from('cierres').select('*').eq('fecha', fecha).single();
-
     let error;
     if (existe) {
         const { error: err } = await supabase.from('cierres').update({ monto_final: monto }).eq('fecha', fecha);
@@ -268,25 +242,38 @@ app.post('/cierre', async (req, res) => {
         const { error: err } = await supabase.from('cierres').insert([{ fecha, monto_final: monto }]);
         error = err;
     }
-
     if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: "Cierre de caja guardado con éxito" });
+    res.json({ message: "Cierre guardado" });
 });
 
-// RUTA I: Obtener Órdenes Pendientes (SOLO COCINA)
+// REPARTIDOR Y OTROS
 app.get('/ordenes/pendientes', async (req, res) => {
-    const { data, error } = await supabase
-        .from('ordenes')
-        .select('*')
-        .eq('estado', 'pendiente') // <--- CAMBIO: Solo mostramos lo pendiente estrictamente
-        .order('id', { ascending: true });
-
+    const { data, error } = await supabase.from('ordenes').select('*').eq('estado', 'pendiente').order('id', { ascending: true });
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-// --- ADMINISTRACIÓN ---
+app.get('/repartidor/pedidos', async (req, res) => {
+    const { data, error } = await supabase.from('ordenes').select('*').eq('estado', 'listo').eq('tipo_entrega', 'domicilio').order('id', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
 
+app.get('/repartidor/historial', async (req, res) => {
+    const hoy = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase.from('ordenes').select('*').eq('estado', 'entregado').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('id', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.patch('/ordenes/:id/entregar', async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase.from('ordenes').update({ estado: 'entregado' }).eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: 'Entrega registrada' });
+});
+
+// ADMINISTRACIÓN
 app.post('/admin/platos', async (req, res) => {
     const { nombre, precio, stock, categoria } = req.body;
     if (!nombre || precio < 0 || stock < 0 || !categoria) return res.status(400).json({ error: "Datos inválidos" });
@@ -294,87 +281,28 @@ app.post('/admin/platos', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
     res.json(data[0]);
 });
-
 app.delete('/admin/platos/:id', async (req, res) => {
-    const { id } = req.params;
-    const { error } = await supabase.from('platos').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: "Plato eliminado" });
+    const { id } = req.params; const { error } = await supabase.from('platos').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message }); res.json({ message: "Eliminado" });
 });
-
 app.put('/admin/platos/:id', async (req, res) => {
-    const { id } = req.params;
-    const { nombre, precio, stock, categoria } = req.body;
+    const { id } = req.params; const { nombre, precio, stock, categoria } = req.body;
     const { error } = await supabase.from('platos').update({ nombre, precio, stock, categoria }).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: "Plato actualizado" });
+    if (error) return res.status(500).json({ error: error.message }); res.json({ message: "Actualizado" });
 });
-
 app.get('/categorias', async (req, res) => {
     const { data, error } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    if (error) return res.status(500).json({ error: error.message }); res.json(data);
 });
-
 app.post('/categorias', async (req, res) => {
-    const { nombre } = req.body;
-    if (!nombre) return res.status(400).json({ error: "Nombre requerido" });
+    const { nombre } = req.body; if (!nombre) return res.status(400).json({ error: "Nombre requerido" });
     const { data, error } = await supabase.from('categorias').insert([{ nombre }]).select();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
+    if (error) return res.status(500).json({ error: error.message }); res.json(data[0]);
 });
-
 app.delete('/categorias/:id', async (req, res) => {
-    const { id } = req.params;
-    const { error } = await supabase.from('categorias').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: "Categoría eliminada" });
+    const { id } = req.params; const { error } = await supabase.from('categorias').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message }); res.json({ message: "Eliminado" });
 });
 
-// --- RUTAS DEL REPARTIDOR ---
-
-// 1. Ver pedidos listos para llevar (Solo domicilio y estado 'listo')
-app.get('/repartidor/pedidos', async (req, res) => {
-    const { data, error } = await supabase
-        .from('ordenes')
-        .select('*')
-        .eq('estado', 'listo')          // Que la cocina ya terminó
-        .eq('tipo_entrega', 'domicilio') // Que sea para llevar
-        .order('id', { ascending: true });
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-});
-
-// 2. Ver historial de entregas de HOY (Para su control)
-app.get('/repartidor/historial', async (req, res) => {
-    const hoy = new Date().toISOString().split('T')[0];
-    const { data, error } = await supabase
-        .from('ordenes')
-        .select('*')
-        .eq('estado', 'entregado')
-        .gte('created_at', `${hoy}T00:00:00`)
-        .lte('created_at', `${hoy}T23:59:59`)
-        .order('id', { ascending: false });
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-});
-
-// 3. Marcar como ENTREGADO
-app.patch('/ordenes/:id/entregar', async (req, res) => {
-    const { id } = req.params;
-    const { error } = await supabase
-        .from('ordenes')
-        .update({ estado: 'entregado' })
-        .eq('id', id);
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: 'Entrega registrada' });
-});
-
-// 5. ENCENDER EL SERVIDOR
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
-});
+server.listen(PORT, () => { console.log(`✅ Servidor corriendo en http://localhost:${PORT}`); });
