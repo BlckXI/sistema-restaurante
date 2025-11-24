@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'http://localhost:3000'; 
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; 
 const io = socket(URL_BACKEND);
 
 export default function Cocina() {
