@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com  '; // ⚠️ Revisa que sea tu URL correcta
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ Revisa que sea tu URL correcta
 
 export default function Inventario() {
 // --- ESTADOS DE DATOS ---
