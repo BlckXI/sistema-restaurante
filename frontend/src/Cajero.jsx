@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-// CORRECCIÓN: URL limpia
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A TU URL DE RENDER EN PRODUCCIÓN
 const io = socket(URL_BACKEND); 
 
 export default function Cajero() {
@@ -76,17 +75,6 @@ export default function Cajero() {
     } catch (error) { console.log("Error cargando clientes"); }
   };
 
-  // --- LÓGICA MAESTRA: OBTENER STOCK VISUAL (PADRE O HIJO) ---
-  const obtenerStockVisual = (plato) => {
-      // Si el plato tiene un padre (es porción)
-      if (plato.id_padre) {
-          // Buscamos al padre usando '=='
-          const padre = platos.find(p => p.id == plato.id_padre);
-          return padre ? padre.stock : 0;
-      }
-      return plato.stock;
-  };
-
   const platosFiltrados = platos.filter(plato => {
     const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
@@ -103,9 +91,17 @@ export default function Cajero() {
     mostrarNotificacion(`Agregando extras para ${c.nombre}`, 'exito');
   };
 
+  // Helper para stock visual (Padre/Hijo)
+  const obtenerStockVisual = (plato) => {
+      if (plato.id_padre) {
+          const padre = platos.find(p => p.id === plato.id_padre);
+          return padre ? padre.stock : 0;
+      }
+      return plato.stock;
+  };
+
   const agregar = (plato) => {
     const stockDisponible = obtenerStockVisual(plato);
-    
     if (stockDisponible <= 0) return;
     
     let enCarrito = 0;
@@ -113,11 +109,11 @@ export default function Cajero() {
 
     carrito.forEach(item => {
         const idItemGrupo = item.id_padre || item.id;
-        if (idItemGrupo == idGrupo) enCarrito += item.cantidad;
+        if (idItemGrupo === idGrupo) enCarrito += item.cantidad;
     });
 
     if (enCarrito + 1 > stockDisponible) {
-        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades compartidas`, 'error');
+        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades`, 'error');
         return;
     }
 
@@ -239,7 +235,7 @@ export default function Cajero() {
 
       {/* MENÚ */}
       <div className="w-full md:w-2/3 bg-white p-4 rounded shadow flex flex-col h-full">
-        <div className="mb-4 flex flex-col md:flex-row gap-3 border-b pb-4">
+        <div className="mb-4 flex gap-3 border-b pb-4">
             <div className="relative flex-1">
                 <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
                 <input type="text" placeholder="Buscar plato..." className="w-full pl-10 p-2 border rounded-lg" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
@@ -254,25 +250,11 @@ export default function Cajero() {
             {platosFiltrados.length === 0 ? <div className="text-center py-10 text-gray-400">No se encontraron platos.</div> : 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {platosFiltrados.map(plato => {
-                // AQUÍ ESTÁ LA CLAVE: CALCULAMOS EL STOCK VISUAL
                 const stock = obtenerStockVisual(plato);
-                
                 return (
-                    <button 
-                        key={plato.id} 
-                        onClick={() => agregar(plato)} 
-                        disabled={stock === 0} 
-                        className={`p-4 rounded-lg shadow-sm text-center border-2 transition relative flex flex-col justify-between
-                        ${stock > 0 
-                        ? 'border-blue-50 hover:border-blue-500 bg-white' 
-                        : 'bg-gray-100 opacity-60 cursor-not-allowed border-gray-200'}`}
-                    >
+                    <button key={plato.id} onClick={() => agregar(plato)} disabled={stock === 0} className={`p-4 rounded-lg shadow-sm text-center border-2 transition relative ${stock > 0 ? 'border-blue-50 hover:border-blue-500 bg-white' : 'bg-gray-100 opacity-60 cursor-not-allowed'}`}>
                         <div>
                             <h3 className="font-bold text-gray-800 leading-tight mb-1">{plato.nombre}</h3>
-                            
-                            {/* ESTA ES LA ETIQUETA QUE FALTA EN TU PANTALLA */}
-                            {plato.id_padre && <span className="text-[10px] bg-purple-100 text-purple-800 px-1 rounded mb-1 inline-block">Porción</span>}
-                            
                             <p className="text-xs text-gray-400 mb-2">{plato.categoria}</p>
                         </div>
                         <div>

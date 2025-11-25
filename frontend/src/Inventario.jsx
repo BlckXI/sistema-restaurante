@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// CORRECCIÓN: URL limpia, sin espacios al final
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A TU URL DE RENDER EN PRODUCCIÓN
 
 export default function Inventario() {
   // --- ESTADOS DE DATOS ---
   const [platos, setPlatos] = useState([]);
   const [categorias, setCategorias] = useState([]); 
 
-  // --- ESTADOS DE FILTRO ---
+  // --- ESTADOS DE FILTRO Y BÚSQUEDA ---
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
 
@@ -19,11 +18,7 @@ export default function Inventario() {
   const [precio, setPrecio] = useState('');
   const [stock, setStock] = useState('');
   const [categoria, setCategoria] = useState('');
-  const [idPadre, setIdPadre] = useState(''); 
-  
-  // --- BUSCADOR INTELIGENTE DE PADRE ---
-  const [busquedaPadre, setBusquedaPadre] = useState('');
-  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const [idPadre, setIdPadre] = useState(''); // Para compartir stock
 
   // --- ESTADO NUEVA CATEGORIA ---
   const [nuevaCat, setNuevaCat] = useState('');
@@ -54,34 +49,21 @@ export default function Inventario() {
     }
   };
 
+  // --- LÓGICA DE FILTRADO ---
   const platosFiltrados = platos.filter(plato => {
     const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria = filtroCategoria === '' || plato.categoria === filtroCategoria;
     return coincideTexto && coincideCategoria;
   });
 
-  // Filtro para el buscador de padres (no puede ser él mismo ni un hijo)
-  const posiblesPadres = platos.filter(p => 
-    p.id !== idEdicion && !p.id_padre && 
-    p.nombre.toLowerCase().includes(busquedaPadre.toLowerCase())
-  );
-
+  // --- LOGICA FORMULARIO ---
   const prepararEdicion = (plato) => {
     setIdEdicion(plato.id);
     setNombre(plato.nombre);
     setPrecio(plato.precio);
     setStock(plato.stock);
     setCategoria(plato.categoria);
-    
-    if (plato.id_padre) {
-        // Usamos '==' por si hay mezcla de string/number
-        const padre = platos.find(p => p.id == plato.id_padre);
-        setIdPadre(plato.id_padre);
-        setBusquedaPadre(padre ? padre.nombre : 'Padre no encontrado');
-    } else {
-        setIdPadre('');
-        setBusquedaPadre('');
-    }
+    setIdPadre(plato.id_padre || ''); // Cargar vínculo si existe
   };
 
   const cancelarEdicion = () => {
@@ -90,13 +72,12 @@ export default function Inventario() {
     setPrecio('');
     setStock('');
     setIdPadre('');
-    setBusquedaPadre('');
-    setMostrarSugerencias(false);
     if(categorias.length > 0) setCategoria(categorias[0].nombre);
   };
 
   const guardarPlato = async (e) => {
     e.preventDefault();
+    // Validación: Si tiene padre, el stock no importa (se ignora), si no, es obligatorio
     if (!nombre.trim() || !precio || (!idPadre && !stock) || !categoria) {
         mostrarNotificacion("Completa todos los campos", "error");
         return;
@@ -125,17 +106,7 @@ export default function Inventario() {
     } finally { setCargando(false); }
   };
 
-  const seleccionarPadre = (platoPadre) => {
-      setIdPadre(platoPadre.id);
-      setBusquedaPadre(platoPadre.nombre);
-      setMostrarSugerencias(false);
-  };
-
-  const limpiarPadre = () => {
-      setIdPadre('');
-      setBusquedaPadre('');
-  };
-
+  // --- LOGICA DE ELIMINACIÓN ---
   const solicitarEliminar = (id, tipo, nombreItem) => {
     setModalEliminar({ id, tipo, nombre: nombreItem });
   };
@@ -189,6 +160,7 @@ export default function Inventario() {
         </div>
       )}
 
+      {/* NOTIFICACIÓN */}
       {notificacion && (
         <div className={`fixed top-20 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold animate-bounce
             ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
@@ -208,18 +180,11 @@ export default function Inventario() {
                 
                 <div className="grid grid-cols-2 gap-2">
                     <input type="number" step="0.01" placeholder="Precio $" className="w-full p-2 border rounded" value={precio} onChange={e => setPrecio(e.target.value)} />
-                    {/* Input Stock deshabilitado si hay padre */}
-                    <input 
-                        type="number" 
-                        placeholder="Stock" 
-                        className={`w-full p-2 border rounded ${idPadre ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} 
-                        value={stock} 
-                        onChange={e => setStock(e.target.value)} 
-                        disabled={!!idPadre} 
-                    />
+                    {/* Stock se deshabilita si es hijo */}
+                    <input type="number" placeholder="Stock" className={`w-full p-2 border rounded ${idPadre ? 'bg-gray-100 text-gray-400' : ''}`} value={stock} onChange={e => setStock(e.target.value)} disabled={!!idPadre} />
                 </div>
 
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                     <div>
                         <label className="text-xs font-bold text-gray-500">Categoría</label>
                         <select className="w-full p-2 border rounded bg-white text-sm" value={categoria} onChange={e => setCategoria(e.target.value)}>
@@ -227,46 +192,14 @@ export default function Inventario() {
                             {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
                         </select>
                     </div>
-
-                    {/* BUSCADOR DE PADRE */}
-                    <div className="relative">
-                        <label className="text-xs font-bold text-blue-600">🔗 Comparte Stock con (Opcional):</label>
-                        <div className="flex gap-1">
-                            <input 
-                                type="text" 
-                                placeholder="Buscar plato principal..." 
-                                className={`w-full p-2 border rounded text-sm ${idPadre ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold' : ''}`}
-                                value={busquedaPadre}
-                                onChange={(e) => {
-                                    setBusquedaPadre(e.target.value);
-                                    setIdPadre('');
-                                    setMostrarSugerencias(true);
-                                }}
-                                onFocus={() => setMostrarSugerencias(true)}
-                            />
-                            {idPadre && (
-                                <button type="button" onClick={limpiarPadre} className="bg-red-100 text-red-500 px-3 rounded border border-red-200 hover:bg-red-200">×</button>
-                            )}
-                        </div>
-
-                        {mostrarSugerencias && busquedaPadre && !idPadre && (
-                            <div className="absolute z-10 w-full bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto mt-1">
-                                {posiblesPadres.length === 0 ? (
-                                    <div className="p-2 text-gray-400 text-xs">No se encontraron platos.</div>
-                                ) : (
-                                    posiblesPadres.map(p => (
-                                        <button 
-                                            key={p.id}
-                                            type="button"
-                                            onClick={() => seleccionarPadre(p)}
-                                            className="w-full text-left p-2 text-sm hover:bg-blue-50 border-b last:border-0"
-                                        >
-                                            {p.nombre} <span className="text-xs text-gray-400">({p.stock})</span>
-                                        </button>
-                                    ))
-                                )}
-                            </div>
-                        )}
+                    <div>
+                        <label className="text-xs font-bold text-blue-600">🔗 Comparte Stock:</label>
+                        <select className="w-full p-2 border rounded bg-blue-50 text-sm border-blue-200" value={idPadre} onChange={e => setIdPadre(e.target.value)}>
+                            <option value="">-- Stock Propio --</option>
+                            {platos.filter(p => !p.id_padre && p.id !== idEdicion).map(p => (
+                                <option key={p.id} value={p.id}>{p.nombre}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
@@ -320,47 +253,23 @@ export default function Inventario() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                    {platosFiltrados.map((plato) => {
-                        // --- CÁLCULO DE STOCK VISUAL ---
-                        let stockVisual = plato.stock;
-                        let esHijo = false;
-                        
-                        if (plato.id_padre) {
-                            // ✅ CORRECCIÓN: Usamos == (doble igual) para que ignore tipos
-                            const padre = platos.find(p => p.id == plato.id_padre);
-                            if (padre) {
-                                stockVisual = padre.stock;
-                                esHijo = true;
-                            }
-                        }
-                        // ---------------------------------------
-
-                        return (
-                            <tr key={plato.id} className={`hover:bg-blue-50 transition-colors ${idEdicion === plato.id ? 'bg-yellow-50' : ''}`}>
-                                <td className="p-3 font-medium text-gray-800">
-                                    {plato.nombre}
-                                    {esHijo && (
-                                        <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded font-bold border border-purple-200" title="Comparte stock">
-                                            🔗 COMPARTIDO
-                                        </span>
-                                    )}
-                                    <span className="block text-xs text-gray-400 bg-gray-100 w-fit px-1 rounded mt-1">{plato.categoria}</span>
-                                </td>
-                                <td className="p-3 font-bold text-green-600">${plato.precio.toFixed(2)}</td>
-                                <td className="p-3">
-                                    <span className={`font-bold ${stockVisual < 5 ? 'text-red-500' : 'text-gray-700'}`}>
-                                        {stockVisual}
-                                    </span>
-                                </td>
-                                <td className="p-3 text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <button onClick={() => prepararEdicion(plato)} className="text-blue-600 font-bold text-sm">✏️</button>
-                                        <button onClick={() => solicitarEliminar(plato.id, 'plato', plato.nombre)} className="text-red-600 font-bold text-sm">🗑️</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        );
-                    })}
+                    {platosFiltrados.map((plato) => (
+                        <tr key={plato.id} className={`hover:bg-blue-50 transition-colors ${idEdicion === plato.id ? 'bg-yellow-50' : ''}`}>
+                            <td className="p-3 font-medium text-gray-800">
+                                {plato.nombre}
+                                {plato.id_padre && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded">HIJO</span>}
+                                <span className="block text-xs text-gray-400 bg-gray-100 w-fit px-1 rounded mt-1">{plato.categoria}</span>
+                            </td>
+                            <td className="p-3 font-bold text-green-600">${plato.precio.toFixed(2)}</td>
+                            <td className="p-3"><span className={`font-bold ${plato.stock < 5 ? 'text-red-500' : 'text-gray-700'}`}>{plato.stock}</span></td>
+                            <td className="p-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => prepararEdicion(plato)} className="text-blue-600 font-bold text-sm">✏️</button>
+                                    <button onClick={() => solicitarEliminar(plato.id, 'plato', plato.nombre)} className="text-red-600 font-bold text-sm">🗑️</button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>
