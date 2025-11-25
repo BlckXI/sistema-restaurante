@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ ASEGÚRATE QUE ESTA SEA TU URL DE RENDER
+// CORRECCIÓN: URL limpia
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
 const io = socket(URL_BACKEND); 
 
 export default function Cajero() {
@@ -75,6 +76,17 @@ export default function Cajero() {
     } catch (error) { console.log("Error cargando clientes"); }
   };
 
+  // --- LÓGICA MAESTRA: OBTENER STOCK VISUAL (PADRE O HIJO) ---
+  const obtenerStockVisual = (plato) => {
+      // Si el plato tiene un padre (es porción)
+      if (plato.id_padre) {
+          // Buscamos al padre usando '=='
+          const padre = platos.find(p => p.id == plato.id_padre);
+          return padre ? padre.stock : 0;
+      }
+      return plato.stock;
+  };
+
   const platosFiltrados = platos.filter(plato => {
     const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
@@ -91,47 +103,21 @@ export default function Cajero() {
     mostrarNotificacion(`Agregando extras para ${c.nombre}`, 'exito');
   };
 
-  // --- LÓGICA CORREGIDA DE STOCK VISUAL ---
-  const obtenerStockVisual = (plato) => {
-      // Si tiene un padre asignado
-      if (plato.id_padre) {
-          // Buscamos al padre usando '==' para evitar error de tipo (string vs number)
-          const padre = platos.find(p => p.id == plato.id_padre);
-          
-          // Si encontramos al padre, devolvemos su stock. Si no, 0.
-          if (padre) return padre.stock;
-          
-          // Debug: Si llega aquí, es que tiene id_padre pero no encontró al padre en la lista
-          console.warn(`No encontré al padre (ID: ${plato.id_padre}) de ${plato.nombre}`);
-          return 0;
-      }
-      // Si no tiene padre, es stock propio
-      return plato.stock;
-  };
-
   const agregar = (plato) => {
     const stockDisponible = obtenerStockVisual(plato);
     
-    if (stockDisponible <= 0) {
-        mostrarNotificacion('No hay stock disponible', 'error');
-        return;
-    }
+    if (stockDisponible <= 0) return;
     
-    // Verificamos cuánto stock combinado (padre + hijos) hay ya en el carrito
     let enCarrito = 0;
-    // Identificamos el ID principal del grupo (si es hijo, es el id del padre; si es padre, es su propio id)
     const idGrupo = plato.id_padre || plato.id;
 
     carrito.forEach(item => {
         const idItemGrupo = item.id_padre || item.id;
-        // Si el item en carrito pertenece a la misma familia (mismo padre), sumamos
-        if (idItemGrupo == idGrupo) { 
-            enCarrito += item.cantidad;
-        }
+        if (idItemGrupo == idGrupo) enCarrito += item.cantidad;
     });
 
     if (enCarrito + 1 > stockDisponible) {
-        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades en total`, 'error');
+        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades compartidas`, 'error');
         return;
     }
 
@@ -153,7 +139,6 @@ export default function Cajero() {
     }
   };
 
-  // --- FORMULARIO ---
   const handleNombreChange = (e) => {
     const valor = e.target.value;
     if (/^[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]*$/.test(valor)) {
@@ -269,14 +254,13 @@ export default function Cajero() {
             {platosFiltrados.length === 0 ? <div className="text-center py-10 text-gray-400">No se encontraron platos.</div> : 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {platosFiltrados.map(plato => {
-                // CALCULAMOS EL STOCK VISUAL AQUÍ
+                // AQUÍ ESTÁ LA CLAVE: CALCULAMOS EL STOCK VISUAL
                 const stock = obtenerStockVisual(plato);
                 
                 return (
                     <button 
                         key={plato.id} 
                         onClick={() => agregar(plato)} 
-                        // Deshabilitamos solo si el stock calculado es 0
                         disabled={stock === 0} 
                         className={`p-4 rounded-lg shadow-sm text-center border-2 transition relative flex flex-col justify-between
                         ${stock > 0 
@@ -285,8 +269,10 @@ export default function Cajero() {
                     >
                         <div>
                             <h3 className="font-bold text-gray-800 leading-tight mb-1">{plato.nombre}</h3>
-                            {/* Etiqueta visual para hijos */}
+                            
+                            {/* ESTA ES LA ETIQUETA QUE FALTA EN TU PANTALLA */}
                             {plato.id_padre && <span className="text-[10px] bg-purple-100 text-purple-800 px-1 rounded mb-1 inline-block">Porción</span>}
+                            
                             <p className="text-xs text-gray-400 mb-2">{plato.categoria}</p>
                         </div>
                         <div>
