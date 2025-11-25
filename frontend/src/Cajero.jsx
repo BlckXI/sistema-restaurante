@@ -285,7 +285,7 @@ export default function Cajero() {
         </div>
 
         <div className={`p-3 rounded mb-4 border ${esDomicilio ? 'bg-orange-50 border-orange-200' : 'bg-white'}`}>
-          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={esDomicilio} onChange={e => setEsDomicilio(e.target.checked)} className="w-5 h-5"/><span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>¿Para Llevar?</span></label>
+          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={esDomicilio} onChange={e => setEsDomicilio(e.target.checked)} className="w-5 h-5"/><span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>¿A domicilio?</span></label>
           {esDomicilio && <div className="mt-3 space-y-2"><input type="text" placeholder="Dirección *" className="w-full p-2 border rounded text-sm" value={direccion} onChange={e => setDireccion(e.target.value)}/><input type="text" placeholder="Teléfono *" className="w-full p-2 border rounded text-sm" value={telefono} onChange={handleTelefonoChange}/></div>}
         </div>
 

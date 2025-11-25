@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A HTTPS://... EN PRODUCCIÓN
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ REVISA ESTO
 
 export default function Reportes() {
   const [datos, setDatos] = useState(null);
@@ -13,13 +15,11 @@ export default function Reportes() {
   const [descIngreso, setDescIngreso] = useState('');
   const [montoIngreso, setMontoIngreso] = useState('');
 
-  // Estados para UI
+  // Estados UI
   const [notificacion, setNotificacion] = useState(null);
-  
-  // Estados para MODALES
   const [modalCierre, setModalCierre] = useState(false);
-  const [modalAnular, setModalAnular] = useState(null); // ID orden
-  const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null); // ID ingreso extra (NUEVO)
+  const [modalAnular, setModalAnular] = useState(null); 
+  const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null); 
 
   useEffect(() => {
     cargarReporte();
@@ -41,6 +41,67 @@ export default function Reportes() {
     setTimeout(() => setNotificacion(null), 3000);
   };
 
+  // --- GENERACIÓN DE PDF (NUEVO) ---
+  const generarPDF = () => {
+    if (!datos) return;
+    const doc = new jsPDF();
+    const hoy = new Date().toLocaleDateString();
+
+    // Título
+    doc.setFontSize(22);
+    doc.text("Reporte de Cierre de Caja", 14, 20);
+    
+    doc.setFontSize(12);
+    doc.text(`Fecha: ${hoy}`, 14, 30);
+    doc.text("Monte Sion Variedades", 14, 36);
+
+    // Resumen Financiero
+    autoTable(doc, {
+        startY: 45,
+        head: [['Concepto', 'Monto']],
+        body: [
+            ['Saldo Inicial (Ayer)', `$${datos.saldoInicial}`],
+            ['+ Ventas Comida', `$${datos.ingresoVentas}`],
+            ['+ Ingresos Extras', `$${datos.totalIngresosExtras}`],
+            ['- Gastos Operativos', `-$${datos.totalGastos}`],
+            ['TOTAL EN CAJA', `$${datos.dineroEnCaja}`],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] }, // Azul
+        styles: { fontSize: 12 },
+        columnStyles: { 1: { fontStyle: 'bold', halign: 'right' } }
+    });
+
+    // Tabla de Gastos
+    if (datos.listaGastos.length > 0) {
+        doc.text("Detalle de Gastos", 14, doc.lastAutoTable.finalY + 15);
+        autoTable(doc, {
+            startY: doc.lastAutoTable.finalY + 20,
+            head: [['Descripción', 'Monto']],
+            body: datos.listaGastos.map(g => [g.descripcion, `-$${g.monto.toFixed(2)}`]),
+            theme: 'striped',
+            headStyles: { fillColor: [231, 76, 60] } // Rojo
+        });
+    }
+
+    // Tabla de Ventas (Ranking)
+    doc.text("Resumen de Ventas (Top Platos)", 14, doc.lastAutoTable.finalY + 15);
+    autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 20,
+        head: [['Plato', 'Cantidad']],
+        body: datos.rankingPlatos.map(p => [p.nombre, p.cantidad]),
+        theme: 'striped',
+        headStyles: { fillColor: [46, 204, 113] } // Verde
+    });
+
+    // Pie de página
+    doc.setFontSize(10);
+    doc.text("Reporte generado automáticamente por el sistema.", 14, doc.internal.pageSize.height - 10);
+
+    doc.save(`Cierre_Caja_${hoy.replace(/\//g, '-')}.pdf`);
+    mostrarNotificacion("PDF descargado", "exito");
+  };
+
   // --- GASTOS ---
   const registrarGasto = async (e) => {
     e.preventDefault();
@@ -54,7 +115,7 @@ export default function Reportes() {
   };
 
   const eliminarGasto = async (id) => {
-    if(!window.confirm("¿Borrar este gasto?")) return; // Puedes cambiar este también si gustas luego
+    if(!window.confirm("¿Borrar este gasto?")) return;
     try {
         await axios.delete(`${URL_BACKEND}/gastos/${id}`);
         mostrarNotificacion("Gasto eliminado", "exito");
@@ -62,7 +123,7 @@ export default function Reportes() {
     } catch (error) { mostrarNotificacion("Error al eliminar", "error"); }
   };
 
-  // --- INGRESOS EXTRAS (MODIFICADO) ---
+  // --- INGRESOS EXTRAS ---
   const registrarIngreso = async (e) => {
     e.preventDefault();
     if (!descIngreso || !montoIngreso) return;
@@ -74,12 +135,10 @@ export default function Reportes() {
     } catch (error) { mostrarNotificacion("Error al guardar ingreso", "error"); }
   };
 
-  // 1. Abrir el modal
   const eliminarIngreso = (id) => {
     setModalEliminarIngreso(id);
   };
 
-  // 2. Confirmar y borrar
   const confirmarEliminarIngreso = async () => {
     if(!modalEliminarIngreso) return;
     try {
@@ -89,7 +148,7 @@ export default function Reportes() {
     } catch (error) { 
         mostrarNotificacion("Error al eliminar", "error"); 
     } finally {
-        setModalEliminarIngreso(null); // Cerrar modal
+        setModalEliminarIngreso(null); 
     }
   };
 
@@ -123,34 +182,24 @@ export default function Reportes() {
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6 pb-20 relative">
       
-      {/* --- MODAL ELIMINAR INGRESO (NUEVO) --- */}
+      {/* --- MODAL ELIMINAR INGRESO --- */}
       {modalEliminarIngreso && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center transform scale-100 animate-fade-in-up">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center">
                 <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
                     <span className="text-3xl">🗑️</span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar Ingreso?</h3>
                 <p className="text-gray-600 text-sm mb-6">Se restará del total en caja.</p>
                 <div className="flex gap-3 justify-center">
-                    <button 
-                        onClick={() => setModalEliminarIngreso(null)} 
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition"
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        onClick={confirmarEliminarIngreso} 
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition"
-                    >
-                        Eliminar
-                    </button>
+                    <button onClick={() => setModalEliminarIngreso(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200">Cancelar</button>
+                    <button onClick={confirmarEliminarIngreso} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md">Eliminar</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* MODAL ANULAR ORDEN */}
+      {/* MODALES EXISTENTES */}
       {modalAnular && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -163,8 +212,6 @@ export default function Reportes() {
             </div>
         </div>
       )}
-
-      {/* MODAL CIERRE DE CAJA */}
       {modalCierre && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-900 bg-opacity-90 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -177,18 +224,24 @@ export default function Reportes() {
             </div>
         </div>
       )}
-
-      {/* NOTIFICACIONES */}
       {notificacion && (
         <div className={`fixed top-20 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold animate-bounce ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>{notificacion.mensaje}</div>
       )}
 
       <div className="flex justify-between items-center border-b pb-4">
         <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
-        <button onClick={cargarReporte} className="bg-white border border-gray-300 px-4 py-2 rounded hover:bg-gray-100 font-bold shadow-sm">🔄 Actualizar</button>
+        <div className="flex gap-2">
+            {/* BOTÓN PDF */}
+            <button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold shadow-sm flex items-center gap-2">
+                🖨️ PDF
+            </button>
+            <button onClick={cargarReporte} className="bg-white border border-gray-300 px-4 py-2 rounded hover:bg-gray-100 font-bold shadow-sm">
+                🔄 Actualizar
+            </button>
+        </div>
       </div>
 
-      {/* 1. TARJETAS DE RESUMEN */}
+      {/* TARJETAS DE RESUMEN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <p className="text-gray-500 text-xs font-bold uppercase">Saldo Ayer</p>
@@ -215,7 +268,7 @@ export default function Reportes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* 2. SECCIÓN DE GASTOS */}
+        {/* GASTOS */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <h2 className="font-bold text-lg mb-4 text-red-600">💸 Registrar Gastos</h2>
             <form onSubmit={registrarGasto} className="flex gap-2 mb-4">
@@ -238,7 +291,7 @@ export default function Reportes() {
             </div>
         </div>
 
-        {/* 3. SECCIÓN DE INGRESOS EXTRAS */}
+        {/* INGRESOS EXTRAS */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2>
             <form onSubmit={registrarIngreso} className="flex gap-2 mb-4">
@@ -254,13 +307,7 @@ export default function Reportes() {
                                 <td className="py-2">{i.descripcion}</td>
                                 <td className="py-2 text-right font-bold text-teal-600">+${i.monto.toFixed(2)}</td>
                                 <td className="py-2 text-right">
-                                    {/* BOTÓN MODIFICADO PARA EL MODAL */}
-                                    <button 
-                                        onClick={() => eliminarIngreso(i.id)} 
-                                        className="text-gray-300 hover:text-red-500 font-bold px-2"
-                                    >
-                                        ×
-                                    </button>
+                                    <button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500 font-bold px-2">×</button>
                                 </td>
                             </tr>
                         ))}
@@ -270,7 +317,7 @@ export default function Reportes() {
             </div>
         </div>
 
-        {/* 4. RANKING PLATOS */}
+        {/* RANKING */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <h2 className="font-bold text-lg text-gray-700 mb-4">🏆 Top Ventas</h2>
             <div className="overflow-y-auto max-h-40 pr-2">
@@ -288,7 +335,7 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* 5. HISTORIAL DE ORDENES */}
+      {/* HISTORIAL */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-10">
         <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
             <h3 className="font-bold text-lg text-gray-700">📜 Historial de Comandas</h3>
