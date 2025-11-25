@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+// CAMBIO IMPORTANTE: Usamos HashRouter en lugar de BrowserRouter
+import { HashRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 
 // Importamos las vistas
@@ -49,7 +50,8 @@ function App() {
   if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 animate-pulse">Cargando sistema...</div>;
 
   return (
-    <BrowserRouter>
+    // CAMBIO IMPORTANTE: Envolvemos todo en HashRouter
+    <HashRouter>
       <div className="min-h-screen bg-gray-100 font-sans">
         
         {!session ? (
@@ -93,7 +95,7 @@ function App() {
           </>
         )}
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
