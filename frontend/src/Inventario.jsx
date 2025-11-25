@@ -8,7 +8,7 @@ export default function Inventario() {
   const [platos, setPlatos] = useState([]);
   const [categorias, setCategorias] = useState([]); 
 
-  // --- ESTADOS DE FILTRO Y BÚSQUEDA ---
+  // --- ESTADOS DE FILTRO ---
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
 
@@ -18,7 +18,11 @@ export default function Inventario() {
   const [precio, setPrecio] = useState('');
   const [stock, setStock] = useState('');
   const [categoria, setCategoria] = useState('');
-  const [idPadre, setIdPadre] = useState(''); // Para compartir stock
+  const [idPadre, setIdPadre] = useState(''); 
+  
+  // --- NUEVOS ESTADOS PARA EL BUSCADOR DE PADRE ---
+  const [busquedaPadre, setBusquedaPadre] = useState('');
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
   // --- ESTADO NUEVA CATEGORIA ---
   const [nuevaCat, setNuevaCat] = useState('');
@@ -49,12 +53,22 @@ export default function Inventario() {
     }
   };
 
-  // --- LÓGICA DE FILTRADO ---
+  // --- FILTRADO DE LISTA PRINCIPAL ---
   const platosFiltrados = platos.filter(plato => {
     const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria = filtroCategoria === '' || plato.categoria === filtroCategoria;
     return coincideTexto && coincideCategoria;
   });
+
+  // --- FILTRADO PARA EL SELECTOR INTELIGENTE (PADRES) ---
+  const posiblesPadres = platos.filter(p => 
+    // 1. No puede ser él mismo
+    p.id !== idEdicion && 
+    // 2. No puede ser un plato que ya es hijo (para no hacer cadenas infinitas)
+    !p.id_padre && 
+    // 3. Que coincida con lo que escribimos
+    p.nombre.toLowerCase().includes(busquedaPadre.toLowerCase())
+  );
 
   // --- LOGICA FORMULARIO ---
   const prepararEdicion = (plato) => {
@@ -63,7 +77,16 @@ export default function Inventario() {
     setPrecio(plato.precio);
     setStock(plato.stock);
     setCategoria(plato.categoria);
-    setIdPadre(plato.id_padre || ''); // Cargar vínculo si existe
+    
+    // Lógica para cargar el nombre del padre en el buscador
+    if (plato.id_padre) {
+        const padre = platos.find(p => p.id === plato.id_padre);
+        setIdPadre(plato.id_padre);
+        setBusquedaPadre(padre ? padre.nombre : '');
+    } else {
+        setIdPadre('');
+        setBusquedaPadre('');
+    }
   };
 
   const cancelarEdicion = () => {
@@ -72,12 +95,13 @@ export default function Inventario() {
     setPrecio('');
     setStock('');
     setIdPadre('');
+    setBusquedaPadre('');
+    setMostrarSugerencias(false);
     if(categorias.length > 0) setCategoria(categorias[0].nombre);
   };
 
   const guardarPlato = async (e) => {
     e.preventDefault();
-    // Validación: Si tiene padre, el stock no importa (se ignora), si no, es obligatorio
     if (!nombre.trim() || !precio || (!idPadre && !stock) || !categoria) {
         mostrarNotificacion("Completa todos los campos", "error");
         return;
@@ -104,6 +128,19 @@ export default function Inventario() {
     } catch (error) {
       mostrarNotificacion("Error al guardar", "error");
     } finally { setCargando(false); }
+  };
+
+  // Seleccionar un padre de la lista de sugerencias
+  const seleccionarPadre = (platoPadre) => {
+      setIdPadre(platoPadre.id);
+      setBusquedaPadre(platoPadre.nombre);
+      setMostrarSugerencias(false); // Cerrar lista
+  };
+
+  // Limpiar selección de padre
+  const limpiarPadre = () => {
+      setIdPadre('');
+      setBusquedaPadre('');
   };
 
   // --- LOGICA DE ELIMINACIÓN ---
@@ -160,7 +197,6 @@ export default function Inventario() {
         </div>
       )}
 
-      {/* NOTIFICACIÓN */}
       {notificacion && (
         <div className={`fixed top-20 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold animate-bounce
             ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
@@ -180,11 +216,11 @@ export default function Inventario() {
                 
                 <div className="grid grid-cols-2 gap-2">
                     <input type="number" step="0.01" placeholder="Precio $" className="w-full p-2 border rounded" value={precio} onChange={e => setPrecio(e.target.value)} />
-                    {/* Stock se deshabilita si es hijo */}
+                    {/* Stock */}
                     <input type="number" placeholder="Stock" className={`w-full p-2 border rounded ${idPadre ? 'bg-gray-100 text-gray-400' : ''}`} value={stock} onChange={e => setStock(e.target.value)} disabled={!!idPadre} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
                     <div>
                         <label className="text-xs font-bold text-gray-500">Categoría</label>
                         <select className="w-full p-2 border rounded bg-white text-sm" value={categoria} onChange={e => setCategoria(e.target.value)}>
@@ -192,14 +228,49 @@ export default function Inventario() {
                             {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-blue-600">🔗 Comparte Stock:</label>
-                        <select className="w-full p-2 border rounded bg-blue-50 text-sm border-blue-200" value={idPadre} onChange={e => setIdPadre(e.target.value)}>
-                            <option value="">-- Stock Propio --</option>
-                            {platos.filter(p => !p.id_padre && p.id !== idEdicion).map(p => (
-                                <option key={p.id} value={p.id}>{p.nombre}</option>
-                            ))}
-                        </select>
+
+                    {/* --- NUEVO BUSCADOR DE PADRE (AUTOCOMPLETE) --- */}
+                    <div className="relative">
+                        <label className="text-xs font-bold text-blue-600">🔗 Comparte Stock con (Opcional):</label>
+                        <div className="flex gap-1">
+                            <input 
+                                type="text" 
+                                placeholder="Buscar plato principal..." 
+                                className={`w-full p-2 border rounded text-sm ${idPadre ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold' : ''}`}
+                                value={busquedaPadre}
+                                onChange={(e) => {
+                                    setBusquedaPadre(e.target.value);
+                                    setIdPadre(''); // Si escribe, borramos la selección anterior
+                                    setMostrarSugerencias(true);
+                                }}
+                                onFocus={() => setMostrarSugerencias(true)}
+                            />
+                            {idPadre && (
+                                <button type="button" onClick={limpiarPadre} className="bg-red-100 text-red-500 px-3 rounded border border-red-200 hover:bg-red-200">
+                                    ×
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Lista desplegable de sugerencias */}
+                        {mostrarSugerencias && busquedaPadre && !idPadre && (
+                            <div className="absolute z-10 w-full bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto mt-1">
+                                {posiblesPadres.length === 0 ? (
+                                    <div className="p-2 text-gray-400 text-xs">No se encontraron platos.</div>
+                                ) : (
+                                    posiblesPadres.map(p => (
+                                        <button 
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => seleccionarPadre(p)}
+                                            className="w-full text-left p-2 text-sm hover:bg-blue-50 border-b last:border-0"
+                                        >
+                                            {p.nombre} <span className="text-xs text-gray-400">({p.stock})</span>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -257,7 +328,7 @@ export default function Inventario() {
                         <tr key={plato.id} className={`hover:bg-blue-50 transition-colors ${idEdicion === plato.id ? 'bg-yellow-50' : ''}`}>
                             <td className="p-3 font-medium text-gray-800">
                                 {plato.nombre}
-                                {plato.id_padre && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded">HIJO</span>}
+                                {plato.id_padre && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded font-bold">🔗 HIJO</span>}
                                 <span className="block text-xs text-gray-400 bg-gray-100 w-fit px-1 rounded mt-1">{plato.categoria}</span>
                             </td>
                             <td className="p-3 font-bold text-green-600">${plato.precio.toFixed(2)}</td>
