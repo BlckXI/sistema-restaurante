@@ -52,7 +52,7 @@ function App() {
               <div className="container mx-auto flex flex-wrap justify-between items-center gap-2">
                 <div className="flex items-center gap-2">
                     <span className="text-2xl">🍔</span>
-                    <h1 className="text-xl font-bold hidden md:block">Restaurante</h1>
+                    <h1 className="text-xl font-bold hidden md:block">Variedades Monte Sion</h1>
                 </div>
                 
                 {/* Menú de Navegación */}
