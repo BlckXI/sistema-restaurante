@@ -1,23 +1,25 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A HTTPS://... EN PRODUCCIÓN
 
 export default function Reportes() {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   
-  // Estados para nuevo gasto
+  // Estados para formularios
   const [descGasto, setDescGasto] = useState('');
   const [montoGasto, setMontoGasto] = useState('');
-
-  // Estados para nuevo INGRESO EXTRA
   const [descIngreso, setDescIngreso] = useState('');
   const [montoIngreso, setMontoIngreso] = useState('');
 
+  // Estados para UI
   const [notificacion, setNotificacion] = useState(null);
+  
+  // Estados para MODALES
   const [modalCierre, setModalCierre] = useState(false);
-  const [modalAnular, setModalAnular] = useState(null);
+  const [modalAnular, setModalAnular] = useState(null); // ID orden
+  const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null); // ID ingreso extra (NUEVO)
 
   useEffect(() => {
     cargarReporte();
@@ -52,7 +54,7 @@ export default function Reportes() {
   };
 
   const eliminarGasto = async (id) => {
-    if(!window.confirm("¿Borrar este gasto?")) return;
+    if(!window.confirm("¿Borrar este gasto?")) return; // Puedes cambiar este también si gustas luego
     try {
         await axios.delete(`${URL_BACKEND}/gastos/${id}`);
         mostrarNotificacion("Gasto eliminado", "exito");
@@ -60,7 +62,7 @@ export default function Reportes() {
     } catch (error) { mostrarNotificacion("Error al eliminar", "error"); }
   };
 
-  // --- INGRESOS EXTRAS ---
+  // --- INGRESOS EXTRAS (MODIFICADO) ---
   const registrarIngreso = async (e) => {
     e.preventDefault();
     if (!descIngreso || !montoIngreso) return;
@@ -72,13 +74,23 @@ export default function Reportes() {
     } catch (error) { mostrarNotificacion("Error al guardar ingreso", "error"); }
   };
 
-  const eliminarIngreso = async (id) => {
-    if(!window.confirm("¿Borrar este ingreso?")) return;
+  // 1. Abrir el modal
+  const eliminarIngreso = (id) => {
+    setModalEliminarIngreso(id);
+  };
+
+  // 2. Confirmar y borrar
+  const confirmarEliminarIngreso = async () => {
+    if(!modalEliminarIngreso) return;
     try {
-        await axios.delete(`${URL_BACKEND}/ingresos-extras/${id}`);
-        mostrarNotificacion("Ingreso eliminado", "exito");
+        await axios.delete(`${URL_BACKEND}/ingresos-extras/${modalEliminarIngreso}`);
+        mostrarNotificacion("Ingreso eliminado correctamente", "exito");
         cargarReporte();
-    } catch (error) { mostrarNotificacion("Error al eliminar", "error"); }
+    } catch (error) { 
+        mostrarNotificacion("Error al eliminar", "error"); 
+    } finally {
+        setModalEliminarIngreso(null); // Cerrar modal
+    }
   };
 
   // --- ORDENES Y CIERRE ---
@@ -111,7 +123,34 @@ export default function Reportes() {
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6 pb-20 relative">
       
-      {/* MODALES Y NOTIFICACIONES */}
+      {/* --- MODAL ELIMINAR INGRESO (NUEVO) --- */}
+      {modalEliminarIngreso && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center transform scale-100 animate-fade-in-up">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                    <span className="text-3xl">🗑️</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">¿Eliminar Ingreso?</h3>
+                <p className="text-gray-600 text-sm mb-6">Se restará del total en caja.</p>
+                <div className="flex gap-3 justify-center">
+                    <button 
+                        onClick={() => setModalEliminarIngreso(null)} 
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={confirmarEliminarIngreso} 
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition"
+                    >
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* MODAL ANULAR ORDEN */}
       {modalAnular && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -124,6 +163,8 @@ export default function Reportes() {
             </div>
         </div>
       )}
+
+      {/* MODAL CIERRE DE CAJA */}
       {modalCierre && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-900 bg-opacity-90 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -136,6 +177,8 @@ export default function Reportes() {
             </div>
         </div>
       )}
+
+      {/* NOTIFICACIONES */}
       {notificacion && (
         <div className={`fixed top-20 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold animate-bounce ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>{notificacion.mensaje}</div>
       )}
@@ -174,7 +217,6 @@ export default function Reportes() {
         
         {/* 2. SECCIÓN DE GASTOS */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-            {/* CORRECCIÓN AQUÍ: Solo un color de texto */}
             <h2 className="font-bold text-lg mb-4 text-red-600">💸 Registrar Gastos</h2>
             <form onSubmit={registrarGasto} className="flex gap-2 mb-4">
                 <input type="text" placeholder="Ej. Hielo..." className="flex-1 p-2 border rounded text-sm" value={descGasto} onChange={e => setDescGasto(e.target.value)} />
@@ -198,7 +240,6 @@ export default function Reportes() {
 
         {/* 3. SECCIÓN DE INGRESOS EXTRAS */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-            {/* CORRECCIÓN AQUÍ: Solo un color de texto */}
             <h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2>
             <form onSubmit={registrarIngreso} className="flex gap-2 mb-4">
                 <input type="text" placeholder="Ej. Propina..." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} />
@@ -212,7 +253,15 @@ export default function Reportes() {
                             <tr key={i.id}>
                                 <td className="py-2">{i.descripcion}</td>
                                 <td className="py-2 text-right font-bold text-teal-600">+${i.monto.toFixed(2)}</td>
-                                <td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td>
+                                <td className="py-2 text-right">
+                                    {/* BOTÓN MODIFICADO PARA EL MODAL */}
+                                    <button 
+                                        onClick={() => eliminarIngreso(i.id)} 
+                                        className="text-gray-300 hover:text-red-500 font-bold px-2"
+                                    >
+                                        ×
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
