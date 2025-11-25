@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A TU URL DE RENDER EN PRODUCCIÓN
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ Revisa que sea tu URL correcta
 
 export default function Inventario() {
   // --- ESTADOS DE DATOS ---
@@ -20,7 +20,7 @@ export default function Inventario() {
   const [categoria, setCategoria] = useState('');
   const [idPadre, setIdPadre] = useState(''); 
   
-  // --- NUEVOS ESTADOS PARA EL BUSCADOR DE PADRE ---
+  // --- BUSCADOR INTELIGENTE DE PADRE ---
   const [busquedaPadre, setBusquedaPadre] = useState('');
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
@@ -53,24 +53,18 @@ export default function Inventario() {
     }
   };
 
-  // --- FILTRADO DE LISTA PRINCIPAL ---
   const platosFiltrados = platos.filter(plato => {
     const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria = filtroCategoria === '' || plato.categoria === filtroCategoria;
     return coincideTexto && coincideCategoria;
   });
 
-  // --- FILTRADO PARA EL SELECTOR INTELIGENTE (PADRES) ---
+  // Filtro para el buscador de padres (no puede ser él mismo ni un hijo)
   const posiblesPadres = platos.filter(p => 
-    // 1. No puede ser él mismo
-    p.id !== idEdicion && 
-    // 2. No puede ser un plato que ya es hijo (para no hacer cadenas infinitas)
-    !p.id_padre && 
-    // 3. Que coincida con lo que escribimos
+    p.id !== idEdicion && !p.id_padre && 
     p.nombre.toLowerCase().includes(busquedaPadre.toLowerCase())
   );
 
-  // --- LOGICA FORMULARIO ---
   const prepararEdicion = (plato) => {
     setIdEdicion(plato.id);
     setNombre(plato.nombre);
@@ -78,11 +72,11 @@ export default function Inventario() {
     setStock(plato.stock);
     setCategoria(plato.categoria);
     
-    // Lógica para cargar el nombre del padre en el buscador
     if (plato.id_padre) {
-        const padre = platos.find(p => p.id === plato.id_padre);
+        // Usamos '==' por si hay mezcla de string/number
+        const padre = platos.find(p => p.id == plato.id_padre);
         setIdPadre(plato.id_padre);
-        setBusquedaPadre(padre ? padre.nombre : '');
+        setBusquedaPadre(padre ? padre.nombre : 'Padre no encontrado');
     } else {
         setIdPadre('');
         setBusquedaPadre('');
@@ -130,20 +124,17 @@ export default function Inventario() {
     } finally { setCargando(false); }
   };
 
-  // Seleccionar un padre de la lista de sugerencias
   const seleccionarPadre = (platoPadre) => {
       setIdPadre(platoPadre.id);
       setBusquedaPadre(platoPadre.nombre);
-      setMostrarSugerencias(false); // Cerrar lista
+      setMostrarSugerencias(false);
   };
 
-  // Limpiar selección de padre
   const limpiarPadre = () => {
       setIdPadre('');
       setBusquedaPadre('');
   };
 
-  // --- LOGICA DE ELIMINACIÓN ---
   const solicitarEliminar = (id, tipo, nombreItem) => {
     setModalEliminar({ id, tipo, nombre: nombreItem });
   };
@@ -216,8 +207,15 @@ export default function Inventario() {
                 
                 <div className="grid grid-cols-2 gap-2">
                     <input type="number" step="0.01" placeholder="Precio $" className="w-full p-2 border rounded" value={precio} onChange={e => setPrecio(e.target.value)} />
-                    {/* Stock */}
-                    <input type="number" placeholder="Stock" className={`w-full p-2 border rounded ${idPadre ? 'bg-gray-100 text-gray-400' : ''}`} value={stock} onChange={e => setStock(e.target.value)} disabled={!!idPadre} />
+                    {/* Input Stock deshabilitado si hay padre */}
+                    <input 
+                        type="number" 
+                        placeholder="Stock" 
+                        className={`w-full p-2 border rounded ${idPadre ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} 
+                        value={stock} 
+                        onChange={e => setStock(e.target.value)} 
+                        disabled={!!idPadre} 
+                    />
                 </div>
 
                 <div className="space-y-2">
@@ -229,7 +227,7 @@ export default function Inventario() {
                         </select>
                     </div>
 
-                    {/* --- NUEVO BUSCADOR DE PADRE (AUTOCOMPLETE) --- */}
+                    {/* BUSCADOR DE PADRE */}
                     <div className="relative">
                         <label className="text-xs font-bold text-blue-600">🔗 Comparte Stock con (Opcional):</label>
                         <div className="flex gap-1">
@@ -240,19 +238,16 @@ export default function Inventario() {
                                 value={busquedaPadre}
                                 onChange={(e) => {
                                     setBusquedaPadre(e.target.value);
-                                    setIdPadre(''); // Si escribe, borramos la selección anterior
+                                    setIdPadre('');
                                     setMostrarSugerencias(true);
                                 }}
                                 onFocus={() => setMostrarSugerencias(true)}
                             />
                             {idPadre && (
-                                <button type="button" onClick={limpiarPadre} className="bg-red-100 text-red-500 px-3 rounded border border-red-200 hover:bg-red-200">
-                                    ×
-                                </button>
+                                <button type="button" onClick={limpiarPadre} className="bg-red-100 text-red-500 px-3 rounded border border-red-200 hover:bg-red-200">×</button>
                             )}
                         </div>
 
-                        {/* Lista desplegable de sugerencias */}
                         {mostrarSugerencias && busquedaPadre && !idPadre && (
                             <div className="absolute z-10 w-full bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto mt-1">
                                 {posiblesPadres.length === 0 ? (
@@ -324,23 +319,47 @@ export default function Inventario() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                    {platosFiltrados.map((plato) => (
-                        <tr key={plato.id} className={`hover:bg-blue-50 transition-colors ${idEdicion === plato.id ? 'bg-yellow-50' : ''}`}>
-                            <td className="p-3 font-medium text-gray-800">
-                                {plato.nombre}
-                                {plato.id_padre && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded font-bold">🔗 HIJO</span>}
-                                <span className="block text-xs text-gray-400 bg-gray-100 w-fit px-1 rounded mt-1">{plato.categoria}</span>
-                            </td>
-                            <td className="p-3 font-bold text-green-600">${plato.precio.toFixed(2)}</td>
-                            <td className="p-3"><span className={`font-bold ${plato.stock < 5 ? 'text-red-500' : 'text-gray-700'}`}>{plato.stock}</span></td>
-                            <td className="p-3 text-right">
-                                <div className="flex justify-end gap-2">
-                                    <button onClick={() => prepararEdicion(plato)} className="text-blue-600 font-bold text-sm">✏️</button>
-                                    <button onClick={() => solicitarEliminar(plato.id, 'plato', plato.nombre)} className="text-red-600 font-bold text-sm">🗑️</button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
+                    {platosFiltrados.map((plato) => {
+                        // --- CÁLCULO DE STOCK VISUAL (NUEVO) ---
+                        let stockVisual = plato.stock;
+                        let esHijo = false;
+                        
+                        if (plato.id_padre) {
+                            // Buscamos al padre
+                            const padre = platos.find(p => p.id == plato.id_padre);
+                            if (padre) {
+                                stockVisual = padre.stock;
+                                esHijo = true;
+                            }
+                        }
+                        // ---------------------------------------
+
+                        return (
+                            <tr key={plato.id} className={`hover:bg-blue-50 transition-colors ${idEdicion === plato.id ? 'bg-yellow-50' : ''}`}>
+                                <td className="p-3 font-medium text-gray-800">
+                                    {plato.nombre}
+                                    {esHijo && (
+                                        <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1 rounded font-bold border border-purple-200" title="Comparte stock">
+                                            🔗 COMPARTIDO
+                                        </span>
+                                    )}
+                                    <span className="block text-xs text-gray-400 bg-gray-100 w-fit px-1 rounded mt-1">{plato.categoria}</span>
+                                </td>
+                                <td className="p-3 font-bold text-green-600">${plato.precio.toFixed(2)}</td>
+                                <td className="p-3">
+                                    <span className={`font-bold ${stockVisual < 5 ? 'text-red-500' : 'text-gray-700'}`}>
+                                        {stockVisual}
+                                    </span>
+                                </td>
+                                <td className="p-3 text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <button onClick={() => prepararEdicion(plato)} className="text-blue-600 font-bold text-sm">✏️</button>
+                                        <button onClick={() => solicitarEliminar(plato.id, 'plato', plato.nombre)} className="text-red-600 font-bold text-sm">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
