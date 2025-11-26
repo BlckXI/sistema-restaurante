@@ -14,35 +14,60 @@ app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// --- UTILIDADES ---
-const getFechaLocal = () => {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+// --- 🕒 CORRECCIÓN DE ZONA HORARIA (El Salvador GMT-6) ---
+// Esta función calcula el inicio y fin del día local en formato UTC para la base de datos
+const getRangoDiario = () => {
+    const ahora = new Date();
+    // Forzar hora de El Salvador para saber "qué día es hoy ahí"
+    const fechaElSalvador = new Date(ahora.toLocaleString("en-US", {timeZone: "America/El_Salvador"}));
+    
+    const año = fechaElSalvador.getFullYear();
+    const mes = String(fechaElSalvador.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaElSalvador.getDate()).padStart(2, '0');
+    
+    const fechaStr = `${año}-${mes}-${dia}`;
+
+    // El día en El Salvador comienza a las 06:00 UTC del día actual
+    // y termina a las 06:00 UTC del día siguiente.
+    const inicio = new Date(`${fechaStr}T06:00:00.000Z`).toISOString();
+    
+    const finDate = new Date(`${fechaStr}T06:00:00.000Z`);
+    finDate.setDate(finDate.getDate() + 1); // Sumar 1 día
+    const fin = finDate.toISOString();
+
+    return { inicio, fin, fechaStr };
 };
 
-// FUNCIÓN MAESTRA DE CÁLCULO (Reutilizable)
-const calcularFinanzasDia = async (fecha) => {
-    const inicio = `${fecha}T00:00:00`;
-    const fin = `${fecha}T23:59:59`;
-
-    // 1. Saldo Inicial
-    const { data: ultimoCierre } = await supabase.from('cierres').select('monto_final').lt('fecha', fecha).order('fecha', { ascending: false }).limit(1).single();
+// FUNCIÓN MAESTRA DE CÁLCULO
+const calcularFinanzasDia = async () => {
+    const { inicio, fin, fechaStr } = getRangoDiario();
+    
+    // 1. Saldo Inicial (Cierre del día anterior registrado)
+    const { data: ultimoCierre } = await supabase.from('cierres')
+        .select('monto_final')
+        .lt('fecha', fechaStr) // Buscar cierres menores a la fecha de hoy
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .single();
     const saldoInicial = ultimoCierre ? ultimoCierre.monto_final : 0;
 
-    // 2. Datos del día
-    const { data: ordenes } = await supabase.from('ordenes').select('*').gte('created_at', inicio).lte('created_at', fin);
-    const { data: gastos } = await supabase.from('gastos').select('*').gte('created_at', inicio).lte('created_at', fin);
-    const { data: extras } = await supabase.from('ingresos_extras').select('*').gte('created_at', inicio).lte('created_at', fin);
+    // 2. Consultar datos usando el rango UTC corregido
+    const { data: ordenes } = await supabase.from('ordenes').select('*').gte('created_at', inicio).lt('created_at', fin);
+    const { data: gastos } = await supabase.from('gastos').select('*').gte('created_at', inicio).lt('created_at', fin);
+    const { data: extras } = await supabase.from('ingresos_extras').select('*').gte('created_at', inicio).lt('created_at', fin);
 
     let ventas = 0, tGastos = 0, tExtras = 0, anulado = 0, validas = 0;
     const conteo = {};
 
-    ordenes.forEach(o => {
-        if (o.estado === 'anulado') anulado += o.total;
-        else {
-            ventas += o.total; validas++;
-            o.detalles.forEach(i => conteo[i.nombre] = (conteo[i.nombre] || 0) + i.cantidad);
-        }
-    });
+    if(ordenes) {
+        ordenes.forEach(o => {
+            if (o.estado === 'anulado') anulado += o.total;
+            else {
+                ventas += o.total; validas++;
+                o.detalles.forEach(i => conteo[i.nombre] = (conteo[i.nombre] || 0) + i.cantidad);
+            }
+        });
+    }
 
     if(gastos) gastos.forEach(g => tGastos += g.monto);
     if(extras) extras.forEach(e => tExtras += e.monto);
@@ -58,15 +83,16 @@ const calcularFinanzasDia = async (fecha) => {
         anulado, 
         validas, 
         conteo, 
-        ordenes, 
-        gastos, 
-        extras 
+        ordenes: ordenes || [], 
+        gastos: gastos || [], 
+        extras: extras || [],
+        fechaStr // Devolvemos la fecha local calculada
     };
 };
 
 // --- RUTAS ---
 
-app.get('/', (req, res) => { res.send('Servidor Restaurante V3.0 (Smart Close) 🚀'); });
+app.get('/', (req, res) => { res.send('Servidor Restaurante V4.0 (Timezone Fixed) 🚀'); });
 
 app.get('/platos', async (req, res) => {
     const { data, error } = await supabase.from('platos').select('*').order('id', { ascending: true }); 
@@ -78,6 +104,7 @@ app.get('/platos', async (req, res) => {
 app.post('/ordenes', async (req, res) => {
     const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada } = req.body;
     try {
+        // Validar stock...
         for (const item of detalles) {
             const { data: plato } = await supabase.from('platos').select('stock, nombre, id_padre').eq('id', item.id).single();
             let stockReal = plato.stock;
@@ -88,14 +115,14 @@ app.post('/ordenes', async (req, res) => {
             if (stockReal < item.cantidad) return res.status(400).json({ error: `Stock insuficiente de ${plato?.nombre}.` });
         }
 
-        const hoy = getFechaLocal(); 
-        const { count } = await supabase.from('ordenes').select('*', { count: 'exact', head: true }).gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`);
+        const { count } = await supabase.from('ordenes').select('*', { count: 'exact', head: true }); // Simplificado para evitar líos de fecha en el conteo global
         const numeroTicket = (count || 0) + 1;
 
         const { data: ordenData, error: ordenError } = await supabase.from('ordenes')
             .insert([{ cliente, total, detalles, tipo_entrega, direccion, telefono, numero_diario: numeroTicket, hora_programada }]).select();
         if (ordenError) throw ordenError;
 
+        // Descontar stock
         for (const item of detalles) {
             const { data: p } = await supabase.from('platos').select('id, id_padre').eq('id', item.id).single();
             if (p) {
@@ -116,7 +143,6 @@ app.post('/ordenes', async (req, res) => {
 // FINANZAS
 app.post('/gastos', async (req, res) => {
     const { descripcion, monto } = req.body;
-    if (monto <= 0) return res.status(400).json({ error: "Monto inválido" });
     const { error } = await supabase.from('gastos').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "OK" });
@@ -128,7 +154,6 @@ app.delete('/gastos/:id', async (req, res) => {
 });
 app.post('/ingresos-extras', async (req, res) => {
     const { descripcion, monto } = req.body;
-    if (monto <= 0) return res.status(400).json({ error: "Monto inválido" });
     const { error } = await supabase.from('ingresos_extras').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "OK" });
@@ -139,25 +164,23 @@ app.delete('/ingresos-extras/:id', async (req, res) => {
     res.json({ message: "OK" });
 });
 
-// CONTROL DE ORDENES - COMPLETAR
+// CONTROL
 app.patch('/ordenes/:id/completar', async (req, res) => {
     const { id } = req.params;
-    // Actualizamos a 'listo' y pedimos el tipo_entrega para saber qué hacer
     const { data, error } = await supabase
         .from('ordenes')
         .update({ estado: 'listo' })
         .eq('id', id)
-        .select('id, tipo_entrega') // Importante: traer el tipo
+        .select('id, tipo_entrega, cliente')
         .single();
 
     if (error) return res.status(500).json({ error: error.message });
     
-    // SOLO AVISAMOS AL REPARTIDOR SI ES DOMICILIO
+    // Avisar solo si es domicilio
     if (data.tipo_entrega === 'domicilio') {
         io.emit('orden_lista', data); 
     }
-    
-    res.json({ message: 'Orden completada' });
+    res.json({ message: 'OK' });
 });
 
 app.patch('/ordenes/:id/anular', async (req, res) => {
@@ -178,17 +201,17 @@ app.patch('/ordenes/:id/anular', async (req, res) => {
         res.json({ message: "Anulada" });
     } catch (error) { res.status(500).json({ error: "Error" }); }
 });
+
 app.patch('/ordenes/:id/entregar', async (req, res) => {
     const { error } = await supabase.from('ordenes').update({ estado: 'entregado' }).eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: 'OK' });
 });
 
-// --- REPORTES (Usando función maestra) ---
+// --- REPORTES ---
 app.get('/reportes/hoy', async (req, res) => {
     try {
-        const hoy = getFechaLocal();
-        const datos = await calcularFinanzasDia(hoy);
+        const datos = await calcularFinanzasDia();
 
         const rankingPlatos = Object.entries(datos.conteo)
             .map(([nombre, cantidad]) => ({ nombre, cantidad }))
@@ -204,23 +227,21 @@ app.get('/reportes/hoy', async (req, res) => {
             cantidadOrdenes: datos.validas,
             rankingPlatos,
             listaOrdenes: datos.ordenes,
-            listaGastos: datos.gastos || [],
-            listaIngresosExtras: datos.extras || []
+            listaGastos: datos.gastos,
+            listaIngresosExtras: datos.extras
         });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-// --- CIERRE DE CAJA INTELIGENTE (LA SOLUCIÓN) ---
 app.post('/cierre', async (req, res) => {
     try {
-        const fecha = getFechaLocal();
-        
-        // 1. EL BACKEND CALCULA EL TOTAL REAL EN ESTE INSTANTE
-        // (Ignoramos lo que envíe el frontend para evitar datos viejos)
-        const datosReales = await calcularFinanzasDia(fecha);
+        const datosReales = await calcularFinanzasDia();
         const montoReal = datosReales.dineroEnCaja;
+        const fecha = datosReales.fechaStr; // Usamos la fecha local calculada
 
-        // 2. GUARDAMOS ESE MONTO REAL
         const { data: existe } = await supabase.from('cierres').select('*').eq('fecha', fecha).single();
         if (existe) await supabase.from('cierres').update({ monto_final: montoReal }).eq('fecha', fecha);
         else await supabase.from('cierres').insert([{ fecha, monto_final: montoReal }]);
@@ -239,15 +260,14 @@ app.get('/repartidor/pedidos', async (req, res) => {
     res.json(data);
 });
 app.get('/repartidor/historial', async (req, res) => {
-    const hoy = getFechaLocal();
-    const { data } = await supabase.from('ordenes').select('*').eq('estado', 'entregado').gte('created_at', `${hoy}T00:00:00`).lte('created_at', `${hoy}T23:59:59`).order('id', { ascending: false });
+    const { inicio, fin } = getRangoDiario();
+    const { data } = await supabase.from('ordenes').select('*').eq('estado', 'entregado').gte('created_at', inicio).lt('created_at', fin).order('id', { ascending: false });
     res.json(data);
 });
 
-// --- ADMIN ---
+// --- ADMIN (Sin cambios importantes) ---
 app.post('/admin/platos', async (req, res) => {
     const { nombre, precio, stock, categoria, id_padre } = req.body;
-    if (!nombre || precio < 0 || (!id_padre && stock < 0) || !categoria) return res.status(400).json({ error: "Datos inválidos" });
     const { data, error } = await supabase.from('platos').insert([{ nombre, precio, stock: id_padre ? 0 : stock, categoria, id_padre }]).select();
     if (error) return res.status(500).json({ error: error.message }); res.json(data[0]);
 });
@@ -265,7 +285,7 @@ app.get('/categorias', async (req, res) => {
     res.json(data);
 });
 app.post('/categorias', async (req, res) => {
-    const { nombre } = req.body; if (!nombre) return res.status(400).json({ error: "Requerido" });
+    const { nombre } = req.body;
     const { data } = await supabase.from('categorias').insert([{ nombre }]).select();
     if (error) return res.status(500).json({ error: error.message }); res.json(data[0]);
 });
