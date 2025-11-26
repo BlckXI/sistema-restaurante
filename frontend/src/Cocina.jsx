@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; 
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ Verifica tu URL
 const io = socket(URL_BACKEND);
 
 export default function Cocina() {
@@ -10,12 +10,10 @@ export default function Cocina() {
 
   useEffect(() => {
     cargarOrdenesPendientes();
-
     io.on('nueva_orden', (nuevaOrden) => {
       setOrdenes(prev => [...prev, nuevaOrden]);
       playNotificationSound();
     });
-
     return () => io.off('nueva_orden');
   }, []);
 
@@ -40,6 +38,13 @@ export default function Cocina() {
     audio.play().catch(e => console.log("Audio bloqueado"));
   };
 
+  // Helper para el estilo de la tarjeta según el tipo
+  const getCardStyle = (tipo) => {
+      if (tipo === 'domicilio') return 'border-orange-500 bg-orange-50';
+      if (tipo === 'retiro') return 'border-purple-500 bg-purple-50'; // <--- ESTILO MORADO
+      return 'border-blue-500 bg-white';
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
@@ -56,11 +61,10 @@ export default function Cocina() {
         {ordenes.map((orden) => (
           <div 
             key={orden.id} 
-            className={`border-l-4 rounded-lg p-4 shadow-md bg-white relative animate-fade-in-up
-              ${orden.tipo_entrega === 'domicilio' ? 'border-orange-500' : 'border-blue-500'}`}
+            className={`border-l-8 rounded-lg p-4 shadow-md relative animate-fade-in-up ${getCardStyle(orden.tipo_entrega)}`}
           >
             {/* CABECERA */}
-            <div className="flex justify-between items-start mb-2 border-b pb-2">
+            <div className="flex justify-between items-start mb-2 border-b pb-2 border-gray-200">
                 <div>
                     <span className="font-bold text-3xl block text-gray-800">
                         #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
@@ -68,18 +72,25 @@ export default function Cocina() {
                     <span className="text-sm font-bold text-gray-600 uppercase">
                          {orden.cliente}
                     </span>
-                    <span className="text-xs text-gray-400 font-mono block mt-1">
+                    <span className="text-xs text-gray-500 font-mono block mt-1">
                          {new Date(orden.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </span>
                 </div>
+                
+                {/* ETIQUETAS DE TIPO */}
                 {orden.tipo_entrega === 'domicilio' && (
-                    <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
+                    <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-orange-200">
                         🛵 MOTO
+                    </span>
+                )}
+                {orden.tipo_entrega === 'retiro' && (
+                    <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-purple-200">
+                        🛍️ RETIRO
                     </span>
                 )}
             </div>
 
-            {/* --- AVISO DE HORA PROGRAMADA (NUEVO) --- */}
+            {/* HORA PROGRAMADA */}
             {orden.hora_programada && (
                 <div className="mb-3 bg-yellow-100 border-l-4 border-yellow-500 p-2 text-yellow-900 rounded-r shadow-sm flex items-center gap-2">
                     <span className="text-xl">⏰</span>
@@ -90,18 +101,17 @@ export default function Cocina() {
                 </div>
             )}
 
-            {/* INFO DOMICILIO */}
+            {/* INFO DOMICILIO (Solo si es domicilio) */}
             {orden.tipo_entrega === 'domicilio' && (
-                <div className="bg-orange-50 p-2 rounded text-xs mb-3 text-gray-700 border border-orange-100">
+                <div className="bg-white bg-opacity-60 p-2 rounded text-xs mb-3 text-gray-700 border border-gray-200">
                     <p className="font-bold">📍 {orden.direccion}</p>
                     <p>📞 {orden.telefono}</p>
                 </div>
             )}
 
-            {/* LISTA PLATOS */}
             <ul className="space-y-1 mb-4">
               {orden.detalles.map((item, index) => (
-                <li key={index} className="flex justify-between font-bold text-gray-700 text-lg border-b border-gray-50 last:border-0 pb-1">
+                <li key={index} className="flex justify-between font-bold text-gray-700 text-lg border-b border-gray-200 last:border-0 pb-1">
                   <span>{item.cantidad}x</span>
                   <span>{item.nombre}</span>
                 </li>
@@ -110,7 +120,7 @@ export default function Cocina() {
 
             <button 
                 onClick={() => terminarOrden(orden.id)}
-                className="w-full bg-gray-100 hover:bg-green-600 hover:text-white text-gray-600 font-bold py-2 rounded transition-colors flex justify-center items-center gap-2"
+                className="w-full bg-white border border-gray-300 hover:bg-green-600 hover:text-white hover:border-green-600 text-gray-600 font-bold py-2 rounded transition-all flex justify-center items-center gap-2 shadow-sm"
             >
                 MARCAR LISTO ✅
             </button>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A TU URL DE RENDER EN PRODUCCIÓN
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // REVISA TU URL
 const io = socket(URL_BACKEND); 
 
 export default function Cajero() {
@@ -15,11 +15,16 @@ export default function Cajero() {
   // --- ESTADOS DE FILTRO ---
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
+  const [ordenStock, setOrdenStock] = useState(''); // <--- NUEVO: Estado para ordenar
 
   // --- ESTADOS FORMULARIO ---
   const [cliente, setCliente] = useState('');
   const [horaProgramada, setHoraProgramada] = useState('');
+  
+  // TIPOS DE ENTREGA
   const [esDomicilio, setEsDomicilio] = useState(false);
+  const [esRetiro, setEsRetiro] = useState(false);
+  
   const [direccion, setDireccion] = useState('');
   const [telefono, setTelefono] = useState('');
 
@@ -60,7 +65,6 @@ export default function Cajero() {
         const res = await axios.get(`${URL_BACKEND}/reportes/hoy`);
         const ordenes = res.data.listaOrdenes || [];
         const unicos = {};
-        
         ordenes.forEach(o => {
             if (o.estado !== 'anulado') {
                 unicos[o.cliente] = {
@@ -75,29 +79,43 @@ export default function Cajero() {
     } catch (error) { console.log("Error cargando clientes"); }
   };
 
-  const platosFiltrados = platos.filter(plato => {
-    const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
-    return coincideTexto && coincideCategoria;
-  });
+  const obtenerStockVisual = (plato) => {
+      if (plato.id_padre) {
+          const padre = platos.find(p => p.id == plato.id_padre);
+          return padre ? padre.stock : 0;
+      }
+      return plato.stock;
+  };
+
+  // --- LÓGICA DE FILTRADO Y ORDENAMIENTO ---
+  const platosFiltrados = platos
+    .filter(plato => {
+        const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
+        const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
+        return coincideTexto && coincideCategoria;
+    })
+    .sort((a, b) => {
+        // Si no hay orden seleccionado, no hacemos nada
+        if (!ordenStock) return 0;
+
+        const stockA = obtenerStockVisual(a);
+        const stockB = obtenerStockVisual(b);
+
+        if (ordenStock === 'mayor') return stockB - stockA; // De mayor a menor
+        if (ordenStock === 'menor') return stockA - stockB; // De menor a mayor
+        return 0;
+    });
 
   const seleccionarClienteActivo = (c) => {
     setCliente(c.nombre);
-    setEsDomicilio(c.tipo === 'domicilio');
+    if(c.tipo === 'domicilio') { setEsDomicilio(true); setEsRetiro(false); }
+    else if(c.tipo === 'retiro') { setEsRetiro(true); setEsDomicilio(false); }
+    else { setEsDomicilio(false); setEsRetiro(false); }
     setDireccion(c.direccion || '');
     setTelefono(c.telefono || '');
     setEsExtra(true);
     setModalClientes(false);
     mostrarNotificacion(`Agregando extras para ${c.nombre}`, 'exito');
-  };
-
-  // Helper para stock visual (Padre/Hijo)
-  const obtenerStockVisual = (plato) => {
-      if (plato.id_padre) {
-          const padre = platos.find(p => p.id === plato.id_padre);
-          return padre ? padre.stock : 0;
-      }
-      return plato.stock;
   };
 
   const agregar = (plato) => {
@@ -109,11 +127,11 @@ export default function Cajero() {
 
     carrito.forEach(item => {
         const idItemGrupo = item.id_padre || item.id;
-        if (idItemGrupo === idGrupo) enCarrito += item.cantidad;
+        if (idItemGrupo == idGrupo) enCarrito += item.cantidad;
     });
 
     if (enCarrito + 1 > stockDisponible) {
-        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades`, 'error');
+        mostrarNotificacion(`Solo quedan ${stockDisponible} unidades compartidas`, 'error');
         return;
     }
 
@@ -152,6 +170,16 @@ export default function Cajero() {
     }
   };
 
+  const toggleDomicilio = () => {
+      setEsDomicilio(!esDomicilio);
+      if(!esDomicilio) setEsRetiro(false); 
+  };
+
+  const toggleRetiro = () => {
+      setEsRetiro(!esRetiro);
+      if(!esRetiro) setEsDomicilio(false);
+  };
+
   const validarFormulario = () => {
     const nuevosErrores = {};
     if (!cliente.trim()) nuevosErrores.cliente = true;
@@ -175,12 +203,16 @@ export default function Cajero() {
     const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
     const nombreFinal = esExtra ? `${cliente} (EXTRA)` : cliente;
 
+    let tipoFinal = 'mesa';
+    if (esDomicilio) tipoFinal = 'domicilio';
+    if (esRetiro) tipoFinal = 'retiro';
+
     const orden = {
       cliente: nombreFinal,
       total: subtotal + costoEnvio,
       detalles: carrito,
-      tipo_entrega: esDomicilio ? 'domicilio' : 'mesa',
-      direccion,
+      tipo_entrega: tipoFinal,
+      direccion: esDomicilio ? direccion : '',
       telefono,
       hora_programada: horaProgramada 
     };
@@ -189,7 +221,7 @@ export default function Cajero() {
       await axios.post(`${URL_BACKEND}/ordenes`, orden);
       mostrarNotificacion('¡Orden enviada a cocina! 👨‍🍳', 'exito');
       setCarrito([]); setCliente(''); setHoraProgramada(''); setDireccion(''); setTelefono('');
-      setEsDomicilio(false); setEsExtra(false); setErrores({});
+      setEsDomicilio(false); setEsRetiro(false); setEsExtra(false); setErrores({});
       cargarDatos(); cargarClientesActivos();
     } catch (error) {
       mostrarNotificacion('Error al procesar la orden', 'error');
@@ -220,7 +252,10 @@ export default function Cajero() {
                     {clientesActivos.length === 0 && <p className="text-center text-gray-400">No hay clientes activos.</p>}
                     {clientesActivos.map((c, i) => (
                         <button key={i} onClick={() => seleccionarClienteActivo(c)} className="w-full text-left p-3 rounded border hover:bg-blue-50 flex justify-between group">
-                            <div><p className="font-bold text-gray-800">{c.nombre}</p><p className="text-xs text-gray-500">{c.tipo}</p></div>
+                            <div>
+                                <p className="font-bold text-gray-800">{c.nombre}</p>
+                                <p className="text-xs text-gray-500 uppercase">{c.tipo}</p>
+                            </div>
                             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100">+ Agregar</span>
                         </button>
                     ))}
@@ -235,14 +270,27 @@ export default function Cajero() {
 
       {/* MENÚ */}
       <div className="w-full md:w-2/3 bg-white p-4 rounded shadow flex flex-col h-full">
-        <div className="mb-4 flex gap-3 border-b pb-4">
+        <div className="mb-4 flex flex-col md:flex-row gap-3 border-b pb-4">
             <div className="relative flex-1">
                 <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
                 <input type="text" placeholder="Buscar plato..." className="w-full pl-10 p-2 border rounded-lg" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
             </div>
-            <select className="p-2 border rounded-lg bg-white md:w-1/3" value={categoriaSeleccionada} onChange={e => setCategoriaSeleccionada(e.target.value)}>
+            
+            {/* SELECTOR CATEGORÍA */}
+            <select className="p-2 border rounded-lg bg-white md:w-1/4" value={categoriaSeleccionada} onChange={e => setCategoriaSeleccionada(e.target.value)}>
                 <option value="">🍽️ Todas</option>
                 {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
+            </select>
+
+            {/* NUEVO SELECTOR DE STOCK */}
+            <select 
+                className="p-2 border rounded-lg bg-blue-50 text-blue-700 font-bold md:w-1/4 cursor-pointer" 
+                value={ordenStock} 
+                onChange={e => setOrdenStock(e.target.value)}
+            >
+                <option value="">📦 Stock: Normal</option>
+                <option value="mayor">⬆️ Mayor Stock</option>
+                <option value="menor">⬇️ Menor Stock</option>
             </select>
         </div>
 
@@ -252,9 +300,10 @@ export default function Cajero() {
             {platosFiltrados.map(plato => {
                 const stock = obtenerStockVisual(plato);
                 return (
-                    <button key={plato.id} onClick={() => agregar(plato)} disabled={stock === 0} className={`p-4 rounded-lg shadow-sm text-center border-2 transition relative ${stock > 0 ? 'border-blue-50 hover:border-blue-500 bg-white' : 'bg-gray-100 opacity-60 cursor-not-allowed'}`}>
+                    <button key={plato.id} onClick={() => agregar(plato)} disabled={stock === 0} className={`p-4 rounded-lg shadow-sm text-center border-2 transition relative flex flex-col justify-between ${stock > 0 ? 'border-blue-50 hover:border-blue-500 bg-white' : 'bg-gray-100 opacity-60 cursor-not-allowed border-gray-200'}`}>
                         <div>
                             <h3 className="font-bold text-gray-800 leading-tight mb-1">{plato.nombre}</h3>
+                            {plato.id_padre && <span className="text-[10px] bg-purple-100 text-purple-800 px-1 rounded mb-1 inline-block">Porción</span>}
                             <p className="text-xs text-gray-400 mb-2">{plato.categoria}</p>
                         </div>
                         <div>
@@ -284,9 +333,25 @@ export default function Cajero() {
             <div className="flex-1"><label className="block text-xs font-bold text-blue-800">Hora (Opcional)</label><input type="time" className="w-full p-1 border rounded text-sm" value={horaProgramada} onChange={e => setHoraProgramada(e.target.value)}/></div>
         </div>
 
-        <div className={`p-3 rounded mb-4 border ${esDomicilio ? 'bg-orange-50 border-orange-200' : 'bg-white'}`}>
-          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={esDomicilio} onChange={e => setEsDomicilio(e.target.checked)} className="w-5 h-5"/><span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>¿A domicilio?</span></label>
-          {esDomicilio && <div className="mt-3 space-y-2"><input type="text" placeholder="Dirección *" className="w-full p-2 border rounded text-sm" value={direccion} onChange={e => setDireccion(e.target.value)}/><input type="text" placeholder="Teléfono *" className="w-full p-2 border rounded text-sm" value={telefono} onChange={handleTelefonoChange}/></div>}
+        {/* OPCIONES ENTREGA */}
+        <div className="space-y-2 mb-4">
+            <div className={`p-3 rounded border cursor-pointer transition-colors flex items-center gap-2 ${esRetiro ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`} onClick={toggleRetiro}>
+                <input type="checkbox" checked={esRetiro} onChange={toggleRetiro} className="w-5 h-5 accent-purple-600 cursor-pointer"/>
+                <span className={`font-bold ${esRetiro ? 'text-purple-700' : 'text-gray-600'}`}>🛍️ Retiro en Local</span>
+            </div>
+
+            <div className={`p-3 rounded border transition-colors ${esDomicilio ? 'bg-orange-50 border-orange-300' : 'bg-white border-gray-200'}`}>
+                <div className="flex items-center gap-2 cursor-pointer" onClick={toggleDomicilio}>
+                    <input type="checkbox" checked={esDomicilio} onChange={toggleDomicilio} className="w-5 h-5 accent-orange-500 cursor-pointer"/>
+                    <span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>🛵 Domicilio (+$0.50)</span>
+                </div>
+                {esDomicilio && (
+                    <div className="mt-3 space-y-2 animate-fade-in-down pl-7">
+                        <input type="text" placeholder="Dirección *" className={`w-full p-2 border rounded text-sm ${errores.direccion ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={direccion} onChange={e => setDireccion(e.target.value)}/>
+                        <input type="text" placeholder="Teléfono *" className={`w-full p-2 border rounded text-sm ${errores.telefono ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={telefono} onChange={handleTelefonoChange}/>
+                    </div>
+                )}
+            </div>
         </div>
 
         <div className={`flex-1 overflow-y-auto mb-4 bg-white rounded border p-2 ${errores.carrito ? 'border-red-300' : ''}`}>

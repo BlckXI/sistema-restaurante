@@ -139,13 +139,27 @@ app.delete('/ingresos-extras/:id', async (req, res) => {
     res.json({ message: "OK" });
 });
 
-// CONTROL
+// CONTROL DE ORDENES - COMPLETAR
 app.patch('/ordenes/:id/completar', async (req, res) => {
-    const { data, error } = await supabase.from('ordenes').update({ estado: 'listo' }).eq('id', req.params.id).select();
+    const { id } = req.params;
+    // Actualizamos a 'listo' y pedimos el tipo_entrega para saber qué hacer
+    const { data, error } = await supabase
+        .from('ordenes')
+        .update({ estado: 'listo' })
+        .eq('id', id)
+        .select('id, tipo_entrega') // Importante: traer el tipo
+        .single();
+
     if (error) return res.status(500).json({ error: error.message });
-    io.emit('orden_lista', data[0]); 
-    res.json({ message: 'OK' });
+    
+    // SOLO AVISAMOS AL REPARTIDOR SI ES DOMICILIO
+    if (data.tipo_entrega === 'domicilio') {
+        io.emit('orden_lista', data); 
+    }
+    
+    res.json({ message: 'Orden completada' });
 });
+
 app.patch('/ordenes/:id/anular', async (req, res) => {
     const id = req.params.id;
     try {

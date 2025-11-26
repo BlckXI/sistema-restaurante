@@ -72,7 +72,7 @@ function App() {
                   <Link to="/" className="px-3 py-2 hover:bg-slate-700 rounded text-yellow-300">💰 Caja</Link>
                   <Link to="/cocina" className="px-3 py-2 hover:bg-slate-700 rounded">👨‍🍳 Cocina</Link>
                   <Link to="/repartidor" className="px-3 py-2 hover:bg-slate-700 rounded">🛵 Repartidor</Link>
-                  <Link to="/inventario" className="px-3 py-2 hover:bg-slate-700 rounded">📦 Inventariok</Link>
+                  <Link to="/inventario" className="px-3 py-2 hover:bg-slate-700 rounded">📦 Inventario</Link>
                   <Link to="/reportes" className="px-3 py-2 hover:bg-slate-700 rounded">📊 Reporte</Link>
                   
                   <button onClick={cerrarSesion} className="ml-2 px-3 py-2 bg-red-600 hover:bg-red-700 rounded text-white font-bold text-xs transition">
