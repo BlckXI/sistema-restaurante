@@ -15,7 +15,7 @@ export default function Cajero() {
   // --- ESTADOS DE FILTRO ---
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
-  const [ordenStock, setOrdenStock] = useState(''); // <--- NUEVO: Estado para ordenar
+  const [ordenStock, setOrdenStock] = useState(''); 
 
   // --- ESTADOS FORMULARIO ---
   const [cliente, setCliente] = useState('');
@@ -81,7 +81,7 @@ export default function Cajero() {
 
   const obtenerStockVisual = (plato) => {
       if (plato.id_padre) {
-          const padre = platos.find(p => p.id == plato.id_padre);
+          const padre = platos.find(p => p.id === plato.id_padre);
           return padre ? padre.stock : 0;
       }
       return plato.stock;
@@ -95,14 +95,11 @@ export default function Cajero() {
         return coincideTexto && coincideCategoria;
     })
     .sort((a, b) => {
-        // Si no hay orden seleccionado, no hacemos nada
         if (!ordenStock) return 0;
-
         const stockA = obtenerStockVisual(a);
         const stockB = obtenerStockVisual(b);
-
-        if (ordenStock === 'mayor') return stockB - stockA; // De mayor a menor
-        if (ordenStock === 'menor') return stockA - stockB; // De menor a mayor
+        if (ordenStock === 'mayor') return stockB - stockA;
+        if (ordenStock === 'menor') return stockA - stockB;
         return 0;
     });
 
@@ -127,7 +124,7 @@ export default function Cajero() {
 
     carrito.forEach(item => {
         const idItemGrupo = item.id_padre || item.id;
-        if (idItemGrupo == idGrupo) enCarrito += item.cantidad;
+        if (idItemGrupo === idGrupo) enCarrito += item.cantidad;
     });
 
     if (enCarrito + 1 > stockDisponible) {
@@ -212,7 +209,7 @@ export default function Cajero() {
       total: subtotal + costoEnvio,
       detalles: carrito,
       tipo_entrega: tipoFinal,
-      direccion: esDomicilio ? direccion : '',
+      direccion: esDomicilio ? direccion : '', 
       telefono,
       hora_programada: horaProgramada 
     };
@@ -276,21 +273,19 @@ export default function Cajero() {
                 <input type="text" placeholder="Buscar plato..." className="w-full pl-10 p-2 border rounded-lg" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
             </div>
             
-            {/* SELECTOR CATEGORÍA */}
             <select className="p-2 border rounded-lg bg-white md:w-1/4" value={categoriaSeleccionada} onChange={e => setCategoriaSeleccionada(e.target.value)}>
                 <option value="">🍽️ Todas</option>
                 {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
             </select>
 
-            {/* NUEVO SELECTOR DE STOCK */}
             <select 
-                className="p-2 border rounded-lg bg-blue-50 text-blue-700 font-bold md:w-1/4 cursor-pointer" 
+                className="p-2 border rounded-lg bg-blue-50 text-blue-700 font-bold md:w-1/4 cursor-pointer hover:bg-blue-100 transition" 
                 value={ordenStock} 
                 onChange={e => setOrdenStock(e.target.value)}
             >
                 <option value="">📦 Stock: Normal</option>
-                <option value="mayor">⬆️ Mayor Stock</option>
-                <option value="menor">⬇️ Menor Stock</option>
+                <option value="mayor">⬆️ Mayor Cantidad</option>
+                <option value="menor">⬇️ Menor Cantidad</option>
             </select>
         </div>
 
@@ -319,8 +314,9 @@ export default function Cajero() {
         </div>
       </div>
 
-      {/* ORDEN */}
-      <div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col">
+      {/* ORDEN (Aquí está el cambio) */}
+      {/* Agregué 'h-full' al final de las clases para que ocupe toda la altura disponible */}
+      <div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col h-full">
         <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
             Nueva Orden
             <button onClick={() => setModalClientes(true)} className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-200">👥 Activos</button>
@@ -354,7 +350,8 @@ export default function Cajero() {
             </div>
         </div>
 
-        <div className={`flex-1 overflow-y-auto mb-4 bg-white rounded border p-2 ${errores.carrito ? 'border-red-300' : ''}`}>
+        {/* CARRITO (Ahora con min-h-0 para asegurar scroll correcto en flex) */}
+        <div className={`flex-1 overflow-y-auto mb-4 bg-white rounded border p-2 min-h-0 ${errores.carrito ? 'border-red-300' : ''}`}>
           {carrito.length === 0 ? <div className="h-full flex items-center justify-center text-gray-400 flex-col opacity-60"><span>🛒</span><p className="text-sm">Vacío</p></div> : 
             carrito.map((item, index) => (
               <div key={index} className="flex justify-between items-center py-2 border-b last:border-0">
