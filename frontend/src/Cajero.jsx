@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // REVISA TU URL
+const URL_BACKEND = import.meta.env.VITE_SUPABASE_URL ? 'https://api-restaurante-yawj.onrender.com' : 'http://localhost:3000'; 
+// Nota: Ajusté la URL para que use la de producción si detecta variables, o local si no.
+// Asegúrate de poner tu URL correcta de Render aquí si no usas .env todavía.
+
 const io = socket(URL_BACKEND); 
 
 export default function Cajero() {
@@ -39,12 +42,22 @@ export default function Cajero() {
     cargarDatos();
     cargarClientesActivos();
 
-    io.on('nueva_orden', () => {
-        cargarDatos();
-        cargarClientesActivos();
-    });
+    // --- FUNCIÓN PARA ACTUALIZAR TODO ---
+    const actualizarPanel = () => {
+        cargarDatos(); // Actualiza stock
+        cargarClientesActivos(); // Actualiza lista de clientes
+    };
 
-    return () => io.off('nueva_orden');
+    // Escuchamos TODOS los eventos importantes
+    io.on('nueva_orden', actualizarPanel);
+    io.on('orden_lista', actualizarPanel);   // <--- IMPORTANTE: Cuando cocina termina
+    io.on('orden_anulada', actualizarPanel); // <--- IMPORTANTE: Cuando se anula algo
+
+    return () => {
+        io.off('nueva_orden', actualizarPanel);
+        io.off('orden_lista', actualizarPanel);
+        io.off('orden_anulada', actualizarPanel);
+    };
   }, []);
 
   const cargarDatos = async () => {
@@ -314,8 +327,8 @@ export default function Cajero() {
         </div>
       </div>
 
-      {/* ORDEN (Aquí está el cambio) */}
-      {/* Agregué 'h-full' al final de las clases para que ocupe toda la altura disponible */}
+      {/* ORDEN (Columna Derecha) */}
+      {/* AQUÍ ESTABA EL PROBLEMA: Faltaba h-full para que ocupe toda la altura */}
       <div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col h-full">
         <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
             Nueva Orden
@@ -350,7 +363,8 @@ export default function Cajero() {
             </div>
         </div>
 
-        {/* CARRITO (Ahora con min-h-0 para asegurar scroll correcto en flex) */}
+        {/* CARRITO (Lista de productos) */}
+        {/* AQUÍ ESTABA EL OTRO PROBLEMA: Se agregó min-h-0 para permitir scroll correcto en flex */}
         <div className={`flex-1 overflow-y-auto mb-4 bg-white rounded border p-2 min-h-0 ${errores.carrito ? 'border-red-300' : ''}`}>
           {carrito.length === 0 ? <div className="h-full flex items-center justify-center text-gray-400 flex-col opacity-60"><span>🛒</span><p className="text-sm">Vacío</p></div> : 
             carrito.map((item, index) => (
