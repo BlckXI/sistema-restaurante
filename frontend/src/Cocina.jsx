@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from 'socket.io-client';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ Verifica tu URL
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
 const io = socket(URL_BACKEND);
 
 export default function Cocina() {
@@ -38,10 +38,9 @@ export default function Cocina() {
     audio.play().catch(e => console.log("Audio bloqueado"));
   };
 
-  // Helper para el estilo de la tarjeta según el tipo
   const getCardStyle = (tipo) => {
       if (tipo === 'domicilio') return 'border-orange-500 bg-orange-50';
-      if (tipo === 'retiro') return 'border-purple-500 bg-purple-50'; // <--- ESTILO MORADO
+      if (tipo === 'retiro') return 'border-purple-500 bg-purple-50';
       return 'border-blue-500 bg-white';
   };
 
@@ -106,6 +105,17 @@ export default function Cocina() {
                 <div className="bg-white bg-opacity-60 p-2 rounded text-xs mb-3 text-gray-700 border border-gray-200">
                     <p className="font-bold">📍 {orden.direccion}</p>
                     <p>📞 {orden.telefono}</p>
+                </div>
+            )}
+
+            {/* COMENTARIOS ESPECIALES (Si existen) */}
+            {orden.comentarios && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
+                    <div className="flex items-center gap-1 mb-1">
+                        <span className="text-yellow-600">💡</span>
+                        <span className="font-bold text-yellow-800 text-xs">INSTRUCCIONES:</span>
+                    </div>
+                    <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
                 </div>
             )}
 
