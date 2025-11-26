@@ -327,64 +327,74 @@ export default function Cajero() {
         </div>
       </div>
 
-      {/* ORDEN (Columna Derecha) */}
-      {/* AQUÍ ESTABA EL PROBLEMA: Faltaba h-full para que ocupe toda la altura */}
-      <div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col h-full">
-        <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
-            Nueva Orden
-            <button onClick={() => setModalClientes(true)} className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-200">👥 Activos</button>
-        </h2>
-        {esExtra && <div className="mb-2 bg-yellow-100 border border-yellow-300 text-yellow-800 px-2 py-1 rounded text-xs flex justify-between"><span>⚡ Modo: <strong>Extra</strong></span><button onClick={() => {setEsExtra(false); setCliente('');}} className="text-yellow-600 font-bold">×</button></div>}
+{/* ORDEN (Columna Derecha) - VERSIÓN CORREGIDA */}
+<div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col h-full">
+  <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
+    Nueva Orden
+    <button onClick={() => setModalClientes(true)} className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-200">👥 Activos</button>
+  </h2>
+  
+  {esExtra && <div className="mb-2 bg-yellow-100 border border-yellow-300 text-yellow-800 px-2 py-1 rounded text-xs flex justify-between"><span>⚡ Modo: <strong>Extra</strong></span><button onClick={() => {setEsExtra(false); setCliente('');}} className="text-yellow-600 font-bold">×</button></div>}
 
-        <input type="text" placeholder="Nombre Cliente *" className="w-full p-3 border rounded mb-3" value={cliente} onChange={handleNombreChange} />
-        <div className="mb-3 flex items-center gap-2 bg-blue-50 p-2 rounded border border-blue-100">
-            <span className="text-xl">⏰</span>
-            <div className="flex-1"><label className="block text-xs font-bold text-blue-800">Hora (Opcional)</label><input type="time" className="w-full p-1 border rounded text-sm" value={horaProgramada} onChange={e => setHoraProgramada(e.target.value)}/></div>
-        </div>
+  <input type="text" placeholder="Nombre Cliente *" className="w-full p-3 border rounded mb-3" value={cliente} onChange={handleNombreChange} />
+  
+  <div className="mb-3 flex items-center gap-2 bg-blue-50 p-2 rounded border border-blue-100">
+    <span className="text-xl">⏰</span>
+    <div className="flex-1"><label className="block text-xs font-bold text-blue-800">Hora (Opcional)</label><input type="time" className="w-full p-1 border rounded text-sm" value={horaProgramada} onChange={e => setHoraProgramada(e.target.value)}/></div>
+  </div>
 
-        {/* OPCIONES ENTREGA */}
-        <div className="space-y-2 mb-4">
-            <div className={`p-3 rounded border cursor-pointer transition-colors flex items-center gap-2 ${esRetiro ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`} onClick={toggleRetiro}>
-                <input type="checkbox" checked={esRetiro} onChange={toggleRetiro} className="w-5 h-5 accent-purple-600 cursor-pointer"/>
-                <span className={`font-bold ${esRetiro ? 'text-purple-700' : 'text-gray-600'}`}>🛍️ Retiro en Local</span>
-            </div>
+  {/* OPCIONES ENTREGA */}
+  <div className="space-y-2 mb-4">
+    <div className={`p-3 rounded border cursor-pointer transition-colors flex items-center gap-2 ${esRetiro ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`} onClick={toggleRetiro}>
+      <input type="checkbox" checked={esRetiro} onChange={toggleRetiro} className="w-5 h-5 accent-purple-600 cursor-pointer"/>
+      <span className={`font-bold ${esRetiro ? 'text-purple-700' : 'text-gray-600'}`}>🛍️ Retiro en Local</span>
+    </div>
 
-            <div className={`p-3 rounded border transition-colors ${esDomicilio ? 'bg-orange-50 border-orange-300' : 'bg-white border-gray-200'}`}>
-                <div className="flex items-center gap-2 cursor-pointer" onClick={toggleDomicilio}>
-                    <input type="checkbox" checked={esDomicilio} onChange={toggleDomicilio} className="w-5 h-5 accent-orange-500 cursor-pointer"/>
-                    <span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>🛵 Domicilio (+$0.50)</span>
-                </div>
-                {esDomicilio && (
-                    <div className="mt-3 space-y-2 animate-fade-in-down pl-7">
-                        <input type="text" placeholder="Dirección *" className={`w-full p-2 border rounded text-sm ${errores.direccion ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={direccion} onChange={e => setDireccion(e.target.value)}/>
-                        <input type="text" placeholder="Teléfono *" className={`w-full p-2 border rounded text-sm ${errores.telefono ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={telefono} onChange={handleTelefonoChange}/>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* CARRITO (Lista de productos) */}
-        {/* AQUÍ ESTABA EL OTRO PROBLEMA: Se agregó min-h-0 para permitir scroll correcto en flex */}
-        <div className={`flex-1 overflow-y-auto mb-4 bg-white rounded border p-2 min-h-0 ${errores.carrito ? 'border-red-300' : ''}`}>
-          {carrito.length === 0 ? <div className="h-full flex items-center justify-center text-gray-400 flex-col opacity-60"><span>🛒</span><p className="text-sm">Vacío</p></div> : 
-            carrito.map((item, index) => (
-              <div key={index} className="flex justify-between items-center py-2 border-b last:border-0">
-                <div className="flex items-center gap-2"><button onClick={() => quitar(item.id)} className="text-red-400 font-bold px-2">-</button><span className="font-bold">{item.cantidad}x {item.nombre}</span></div>
-                <span className="font-mono">${(item.precio * item.cantidad).toFixed(2)}</span>
-              </div>
-            ))}
-        </div>
-
-        <div className="space-y-1 text-right mb-4 pt-2 border-t">
-          <p className="text-gray-500 text-sm">Subtotal: ${subtotal.toFixed(2)}</p>
-          {esDomicilio && !esExtra && <p className="text-orange-600 text-sm">+ Envío: $0.50</p>}
-          <p className="text-3xl font-bold text-gray-800">${total.toFixed(2)}</p>
-        </div>
-
-        <button onClick={procesarOrden} disabled={enviando} className={`w-full font-bold py-4 rounded-lg text-lg ${enviando ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white shadow-lg'}`}>
-          {enviando ? '🚀 ENVIANDO...' : (esExtra ? 'AGREGAR EXTRA (+)' : 'CONFIRMAR')}
-        </button>
+    <div className={`p-3 rounded border transition-colors ${esDomicilio ? 'bg-orange-50 border-orange-300' : 'bg-white border-gray-200'}`}>
+      <div className="flex items-center gap-2 cursor-pointer" onClick={toggleDomicilio}>
+        <input type="checkbox" checked={esDomicilio} onChange={toggleDomicilio} className="w-5 h-5 accent-orange-500 cursor-pointer"/>
+        <span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>🛵 Domicilio (+$0.50)</span>
       </div>
+      {esDomicilio && (
+        <div className="mt-3 space-y-2 animate-fade-in-down pl-7">
+          <input type="text" placeholder="Dirección *" className={`w-full p-2 border rounded text-sm ${errores.direccion ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={direccion} onChange={e => setDireccion(e.target.value)}/>
+          <input type="text" placeholder="Teléfono *" className={`w-full p-2 border rounded text-sm ${errores.telefono ? 'border-red-500 bg-red-50' : 'border-orange-200'}`} value={telefono} onChange={handleTelefonoChange}/>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* CARRITO - ÁREA CORREGIDA */}
+  <div className={`flex-1 min-h-0 mb-4 flex flex-col ${errores.carrito ? 'border-red-300' : ''}`}>
+    <div className="bg-white rounded border p-2 flex-1 overflow-y-auto">
+      {carrito.length === 0 ? 
+        <div className="h-full flex items-center justify-center text-gray-400 flex-col opacity-60">
+          <span>🛒</span>
+          <p className="text-sm">Vacío</p>
+        </div> : 
+        carrito.map((item, index) => (
+          <div key={index} className="flex justify-between items-center py-2 border-b last:border-0">
+            <div className="flex items-center gap-2">
+              <button onClick={() => quitar(item.id)} className="text-red-400 font-bold px-2">-</button>
+              <span className="font-bold">{item.cantidad}x {item.nombre}</span>
+            </div>
+            <span className="font-mono">${(item.precio * item.cantidad).toFixed(2)}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <div className="space-y-1 text-right mb-4 pt-2 border-t">
+    <p className="text-gray-500 text-sm">Subtotal: ${subtotal.toFixed(2)}</p>
+    {esDomicilio && !esExtra && <p className="text-orange-600 text-sm">+ Envío: $0.50</p>}
+    <p className="text-3xl font-bold text-gray-800">${total.toFixed(2)}</p>
+  </div>
+
+  <button onClick={procesarOrden} disabled={enviando} className={`w-full font-bold py-4 rounded-lg text-lg ${enviando ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white shadow-lg'}`}>
+    {enviando ? '🚀 ENVIANDO...' : (esExtra ? 'AGREGAR EXTRA (+)' : 'CONFIRMAR')}
+  </button>
+</div>
     </div>
   );
 }
