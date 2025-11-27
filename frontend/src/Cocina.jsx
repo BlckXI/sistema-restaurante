@@ -11,6 +11,8 @@ export default function Cocina() {
   useEffect(() => {
     cargarOrdenesPendientes();
     io.on('nueva_orden', (nuevaOrden) => {
+      console.log('📦 NUEVA ORDEN RECIBIDA EN COCINA:', nuevaOrden);
+      console.log('📝 COMENTARIOS EN ORDEN:', nuevaOrden.comentarios);
       setOrdenes(prev => [...prev, nuevaOrden]);
       playNotificationSound();
     });
@@ -20,8 +22,20 @@ export default function Cocina() {
   const cargarOrdenesPendientes = async () => {
     try {
       const { data } = await axios.get(`${URL_BACKEND}/ordenes/pendientes`);
+      console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
+      // Debug: mostrar comentarios de cada orden
+      data.forEach((orden, index) => {
+        console.log(`📋 Orden ${index + 1}:`, {
+          id: orden.id,
+          cliente: orden.cliente,
+          comentarios: orden.comentarios,
+          tieneComentarios: !!orden.comentarios
+        });
+      });
       setOrdenes(data);
-    } catch (e) { console.log("Esperando ordenes..."); }
+    } catch (e) { 
+      console.log("❌ Error cargando órdenes:", e);
+    }
   };
   
   const terminarOrden = async (id) => {
@@ -57,85 +71,100 @@ export default function Cocina() {
           </div>
         )}
 
-        {ordenes.map((orden) => (
-          <div 
-            key={orden.id} 
-            className={`border-l-8 rounded-lg p-4 shadow-md relative animate-fade-in-up ${getCardStyle(orden.tipo_entrega)}`}
-          >
-            {/* CABECERA */}
-            <div className="flex justify-between items-start mb-2 border-b pb-2 border-gray-200">
-                <div>
-                    <span className="font-bold text-3xl block text-gray-800">
-                        #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
-                    </span>
-                    <span className="text-sm font-bold text-gray-600 uppercase">
-                         {orden.cliente}
-                    </span>
-                    <span className="text-xs text-gray-500 font-mono block mt-1">
-                         {new Date(orden.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </span>
-                </div>
-                
-                {/* ETIQUETAS DE TIPO */}
-                {orden.tipo_entrega === 'domicilio' && (
-                    <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-orange-200">
-                        🛵 MOTO
-                    </span>
-                )}
-                {orden.tipo_entrega === 'retiro' && (
-                    <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-purple-200">
-                        🛍️ RETIRO
-                    </span>
-                )}
-            </div>
-
-            {/* HORA PROGRAMADA */}
-            {orden.hora_programada && (
-                <div className="mb-3 bg-yellow-100 border-l-4 border-yellow-500 p-2 text-yellow-900 rounded-r shadow-sm flex items-center gap-2">
-                    <span className="text-xl">⏰</span>
-                    <div>
-                        <p className="text-xs font-bold uppercase opacity-70">Hora Programada</p>
-                        <p className="font-bold text-lg leading-none">{orden.hora_programada}</p>
-                    </div>
-                </div>
-            )}
-
-            {/* INFO DOMICILIO (Solo si es domicilio) */}
-            {orden.tipo_entrega === 'domicilio' && (
-                <div className="bg-white bg-opacity-60 p-2 rounded text-xs mb-3 text-gray-700 border border-gray-200">
-                    <p className="font-bold">📍 {orden.direccion}</p>
-                    <p>📞 {orden.telefono}</p>
-                </div>
-            )}
-
-            {/* COMENTARIOS ESPECIALES (Si existen) */}
-            {orden.comentarios && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
-                    <div className="flex items-center gap-1 mb-1">
-                        <span className="text-yellow-600">💡</span>
-                        <span className="font-bold text-yellow-800 text-xs">INSTRUCCIONES:</span>
-                    </div>
-                    <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
-                </div>
-            )}
-
-            <ul className="space-y-1 mb-4">
-              {orden.detalles.map((item, index) => (
-                <li key={index} className="flex justify-between font-bold text-gray-700 text-lg border-b border-gray-200 last:border-0 pb-1">
-                  <span>{item.cantidad}x</span>
-                  <span>{item.nombre}</span>
-                </li>
-              ))}
-            </ul>
-
-            <button 
-                onClick={() => terminarOrden(orden.id)}
-                className="w-full bg-white border border-gray-300 hover:bg-green-600 hover:text-white hover:border-green-600 text-gray-600 font-bold py-2 rounded transition-all flex justify-center items-center gap-2 shadow-sm"
+        {ordenes.map((orden) => {
+          console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
+          
+          return (
+            <div 
+              key={orden.id} 
+              className={`border-l-8 rounded-lg p-4 shadow-md relative animate-fade-in-up ${getCardStyle(orden.tipo_entrega)}`}
             >
-                MARCAR LISTO ✅
-            </button>
-          </div>
-        ))}
+              {/* CABECERA */}
+              <div className="flex justify-between items-start mb-2 border-b pb-2 border-gray-200">
+                  <div>
+                      <span className="font-bold text-3xl block text-gray-800">
+                          #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
+                      </span>
+                      <span className="text-sm font-bold text-gray-600 uppercase">
+                           {orden.cliente}
+                      </span>
+                      <span className="text-xs text-gray-500 font-mono block mt-1">
+                           {new Date(orden.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                  </div>
+                  
+                  {/* ETIQUETAS DE TIPO */}
+                  {orden.tipo_entrega === 'domicilio' && (
+                      <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-orange-200">
+                          🛵 MOTO
+                      </span>
+                  )}
+                  {orden.tipo_entrega === 'retiro' && (
+                      <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-purple-200">
+                          🛍️ RETIRO
+                      </span>
+                  )}
+              </div>
+
+              {/* HORA PROGRAMADA */}
+              {orden.hora_programada && (
+                  <div className="mb-3 bg-yellow-100 border-l-4 border-yellow-500 p-2 text-yellow-900 rounded-r shadow-sm flex items-center gap-2">
+                      <span className="text-xl">⏰</span>
+                      <div>
+                          <p className="text-xs font-bold uppercase opacity-70">Hora Programada</p>
+                          <p className="font-bold text-lg leading-none">{orden.hora_programada}</p>
+                      </div>
+                  </div>
+              )}
+
+              {/* INFO DOMICILIO (Solo si es domicilio) */}
+              {orden.tipo_entrega === 'domicilio' && (
+                  <div className="bg-white bg-opacity-60 p-2 rounded text-xs mb-3 text-gray-700 border border-gray-200">
+                      <p className="font-bold">📍 {orden.direccion}</p>
+                      <p>📞 {orden.telefono}</p>
+                  </div>
+              )}
+
+              {/* DEBUG: Mostrar información de comentarios */}
+              <div className="mb-2 p-2 bg-gray-100 rounded text-xs">
+                <p className="font-mono">DEBUG: comentarios = "{orden.comentarios}"</p>
+                <p className="font-mono">Tipo: {typeof orden.comentarios}</p>
+                <p className="font-mono">¿Tiene valor?: {orden.comentarios ? 'SÍ' : 'NO'}</p>
+              </div>
+
+              {/* COMENTARIOS ESPECIALES (Si existen) */}
+              {orden.comentarios && orden.comentarios.trim() !== '' ? (
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
+                      <div className="flex items-center gap-1 mb-1">
+                          <span className="text-yellow-600">💡</span>
+                          <span className="font-bold text-yellow-800 text-xs">INSTRUCCIONES:</span>
+                      </div>
+                      <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
+                  </div>
+              ) : (
+                  <div className="bg-gray-100 p-2 rounded text-xs mb-3 text-gray-500">
+                    No hay instrucciones especiales
+                  </div>
+              )}
+
+              <ul className="space-y-1 mb-4">
+                {orden.detalles.map((item, index) => (
+                  <li key={index} className="flex justify-between font-bold text-gray-700 text-lg border-b border-gray-200 last:border-0 pb-1">
+                    <span>{item.cantidad}x</span>
+                    <span>{item.nombre}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button 
+                  onClick={() => terminarOrden(orden.id)}
+                  className="w-full bg-white border border-gray-300 hover:bg-green-600 hover:text-white hover:border-green-600 text-gray-600 font-bold py-2 rounded transition-all flex justify-center items-center gap-2 shadow-sm"
+              >
+                  MARCAR LISTO ✅
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

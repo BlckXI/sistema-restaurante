@@ -96,9 +96,19 @@ app.get('/platos', async (req, res) => {
     res.json(data);
 });
 
-// CREAR ORDEN - CORREGIDA CON COMENTARIOS
+// CREAR ORDEN - CON DEBUGGING COMPLETO
 app.post('/ordenes', async (req, res) => {
+    console.log('📨 SOLICITUD POST /ordenes RECIBIDA');
+    console.log('📦 CUERPO DE LA SOLICITUD:', JSON.stringify(req.body, null, 2));
+    
     const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada, comentarios } = req.body;
+    
+    console.log('🔍 DATOS EXTRAÍDOS:');
+    console.log('  - Cliente:', cliente);
+    console.log('  - Comentarios:', comentarios);
+    console.log('  - Tipo de comentarios:', typeof comentarios);
+    console.log('  - ¿Comentarios existe?:', comentarios !== undefined);
+    console.log('  - ¿Comentarios tiene valor?:', comentarios ? 'SÍ' : 'NO');
     
     try {
         // Validar stock...
@@ -116,20 +126,30 @@ app.post('/ordenes', async (req, res) => {
         const numeroTicket = (count || 0) + 1;
 
         // INSERTAR CON COMENTARIOS
+        const ordenParaGuardar = { 
+            cliente, 
+            total, 
+            detalles, 
+            tipo_entrega, 
+            direccion, 
+            telefono, 
+            numero_diario: numeroTicket, 
+            hora_programada,
+            comentarios // ← NUEVO CAMPO
+        };
+
+        console.log('💾 DATOS A GUARDAR EN BD:', JSON.stringify(ordenParaGuardar, null, 2));
+
         const { data: ordenData, error: ordenError } = await supabase.from('ordenes')
-            .insert([{ 
-                cliente, 
-                total, 
-                detalles, 
-                tipo_entrega, 
-                direccion, 
-                telefono, 
-                numero_diario: numeroTicket, 
-                hora_programada,
-                comentarios // ← NUEVO CAMPO
-            }]).select();
+            .insert([ordenParaGuardar]).select();
             
-        if (ordenError) throw ordenError;
+        if (ordenError) {
+            console.error('❌ ERROR AL GUARDAR EN BD:', ordenError);
+            throw ordenError;
+        }
+
+        console.log('✅ ORDEN GUARDADA EN BD:', JSON.stringify(ordenData[0], null, 2));
+        console.log('📝 COMENTARIOS GUARDADOS:', ordenData[0].comentarios);
 
         // Descontar stock
         for (const item of detalles) {
@@ -141,10 +161,11 @@ app.post('/ordenes', async (req, res) => {
             }
         }
 
+        console.log('🔊 EMITIENDO EVENTO nueva_orden A COCINA');
         io.emit('nueva_orden', ordenData[0]);
         res.status(201).json({ message: 'Creada', orden: ordenData[0] });
     } catch (error) {
-        console.error(error);
+        console.error('💥 ERROR INTERNO:', error);
         res.status(500).json({ error: "Error interno" });
     }
 });
@@ -264,7 +285,19 @@ app.post('/cierre', async (req, res) => {
 
 // --- AUXILIARES ---
 app.get('/ordenes/pendientes', async (req, res) => {
-    const { data } = await supabase.from('ordenes').select('*').eq('estado', 'pendiente').order('id', { ascending: true });
+    console.log('🔄 SOLICITUD GET /ordenes/pendientes');
+    const { data, error } = await supabase.from('ordenes').select('*').eq('estado', 'pendiente').order('id', { ascending: true });
+    
+    if (error) {
+        console.error('❌ ERROR AL CARGAR ÓRDENES PENDIENTES:', error);
+        return res.status(500).json({ error: error.message });
+    }
+    
+    console.log(`📋 ÓRDENES PENDIENTES ENCONTRADAS: ${data.length}`);
+    data.forEach(orden => {
+        console.log(`   - Orden ${orden.id}: comentarios = "${orden.comentarios}"`);
+    });
+    
     res.json(data);
 });
 

@@ -213,6 +213,10 @@ export default function Cajero() {
     if (esDomicilio) tipoFinal = 'domicilio';
     if (esRetiro) tipoFinal = 'retiro';
 
+    // DEBUG: Ver qué contiene comentarios
+    console.log('🔍 COMENTARIOS ANTES DE ENVIAR:', comentarios);
+    console.log('🔍 TIPO DE COMENTARIOS:', typeof comentarios);
+
     const orden = {
       cliente: nombreFinal,
       total: subtotal + costoEnvio,
@@ -221,8 +225,10 @@ export default function Cajero() {
       direccion: esDomicilio ? direccion : '', 
       telefono,
       hora_programada: horaProgramada,
-      comentarios: comentarios // NUEVO CAMPO
+      comentarios: comentarios
     };
+
+    console.log('📦 ORDEN COMPLETA A ENVIAR:', JSON.stringify(orden, null, 2));
 
     try {
       await axios.post(`${URL_BACKEND}/ordenes`, orden);
@@ -240,6 +246,7 @@ export default function Cajero() {
       cargarDatos(); 
       cargarClientesActivos();
     } catch (error) {
+      console.error('❌ ERROR AL ENVIAR ORDEN:', error);
       mostrarNotificacion('Error al procesar la orden', 'error');
     } finally {
       setEnviando(false);
