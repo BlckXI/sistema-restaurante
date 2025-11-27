@@ -15,10 +15,8 @@ app.use(express.json());
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // --- 🕒 CORRECCIÓN DE ZONA HORARIA (El Salvador GMT-6) ---
-// Esta función calcula el inicio y fin del día local en formato UTC para la base de datos
 const getRangoDiario = () => {
     const ahora = new Date();
-    // Forzar hora de El Salvador para saber "qué día es hoy ahí"
     const fechaElSalvador = new Date(ahora.toLocaleString("en-US", {timeZone: "America/El_Salvador"}));
     
     const año = fechaElSalvador.getFullYear();
@@ -27,12 +25,10 @@ const getRangoDiario = () => {
     
     const fechaStr = `${año}-${mes}-${dia}`;
 
-    // El día en El Salvador comienza a las 06:00 UTC del día actual
-    // y termina a las 06:00 UTC del día siguiente.
     const inicio = new Date(`${fechaStr}T06:00:00.000Z`).toISOString();
     
     const finDate = new Date(`${fechaStr}T06:00:00.000Z`);
-    finDate.setDate(finDate.getDate() + 1); // Sumar 1 día
+    finDate.setDate(finDate.getDate() + 1);
     const fin = finDate.toISOString();
 
     return { inicio, fin, fechaStr };
@@ -45,7 +41,7 @@ const calcularFinanzasDia = async () => {
     // 1. Saldo Inicial (Cierre del día anterior registrado)
     const { data: ultimoCierre } = await supabase.from('cierres')
         .select('monto_final')
-        .lt('fecha', fechaStr) // Buscar cierres menores a la fecha de hoy
+        .lt('fecha', fechaStr)
         .order('fecha', { ascending: false })
         .limit(1)
         .single();
@@ -86,7 +82,7 @@ const calcularFinanzasDia = async () => {
         ordenes: ordenes || [], 
         gastos: gastos || [], 
         extras: extras || [],
-        fechaStr // Devolvemos la fecha local calculada
+        fechaStr
     };
 };
 
@@ -100,9 +96,10 @@ app.get('/platos', async (req, res) => {
     res.json(data);
 });
 
-// CREAR ORDEN
+// CREAR ORDEN - CORREGIDA CON COMENTARIOS
 app.post('/ordenes', async (req, res) => {
-    const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada } = req.body;
+    const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada, comentarios } = req.body;
+    
     try {
         // Validar stock...
         for (const item of detalles) {
@@ -115,11 +112,23 @@ app.post('/ordenes', async (req, res) => {
             if (stockReal < item.cantidad) return res.status(400).json({ error: `Stock insuficiente de ${plato?.nombre}.` });
         }
 
-        const { count } = await supabase.from('ordenes').select('*', { count: 'exact', head: true }); // Simplificado para evitar líos de fecha en el conteo global
+        const { count } = await supabase.from('ordenes').select('*', { count: 'exact', head: true });
         const numeroTicket = (count || 0) + 1;
 
+        // INSERTAR CON COMENTARIOS
         const { data: ordenData, error: ordenError } = await supabase.from('ordenes')
-            .insert([{ cliente, total, detalles, tipo_entrega, direccion, telefono, numero_diario: numeroTicket, hora_programada }]).select();
+            .insert([{ 
+                cliente, 
+                total, 
+                detalles, 
+                tipo_entrega, 
+                direccion, 
+                telefono, 
+                numero_diario: numeroTicket, 
+                hora_programada,
+                comentarios // ← NUEVO CAMPO
+            }]).select();
+            
         if (ordenError) throw ordenError;
 
         // Descontar stock
@@ -147,17 +156,20 @@ app.post('/gastos', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "OK" });
 });
+
 app.delete('/gastos/:id', async (req, res) => {
     const { error } = await supabase.from('gastos').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "OK" });
 });
+
 app.post('/ingresos-extras', async (req, res) => {
     const { descripcion, monto } = req.body;
     const { error } = await supabase.from('ingresos_extras').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "OK" });
 });
+
 app.delete('/ingresos-extras/:id', async (req, res) => {
     const { error } = await supabase.from('ingresos_extras').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
@@ -240,7 +252,7 @@ app.post('/cierre', async (req, res) => {
     try {
         const datosReales = await calcularFinanzasDia();
         const montoReal = datosReales.dineroEnCaja;
-        const fecha = datosReales.fechaStr; // Usamos la fecha local calculada
+        const fecha = datosReales.fechaStr;
 
         const { data: existe } = await supabase.from('cierres').select('*').eq('fecha', fecha).single();
         if (existe) await supabase.from('cierres').update({ monto_final: montoReal }).eq('fecha', fecha);
@@ -255,42 +267,56 @@ app.get('/ordenes/pendientes', async (req, res) => {
     const { data } = await supabase.from('ordenes').select('*').eq('estado', 'pendiente').order('id', { ascending: true });
     res.json(data);
 });
+
 app.get('/repartidor/pedidos', async (req, res) => {
     const { data } = await supabase.from('ordenes').select('*').eq('estado', 'listo').eq('tipo_entrega', 'domicilio').order('id', { ascending: true });
     res.json(data);
 });
+
 app.get('/repartidor/historial', async (req, res) => {
     const { inicio, fin } = getRangoDiario();
     const { data } = await supabase.from('ordenes').select('*').eq('estado', 'entregado').gte('created_at', inicio).lt('created_at', fin).order('id', { ascending: false });
     res.json(data);
 });
 
-// --- ADMIN (Sin cambios importantes) ---
+// --- ADMIN ---
 app.post('/admin/platos', async (req, res) => {
     const { nombre, precio, stock, categoria, id_padre } = req.body;
     const { data, error } = await supabase.from('platos').insert([{ nombre, precio, stock: id_padre ? 0 : stock, categoria, id_padre }]).select();
-    if (error) return res.status(500).json({ error: error.message }); res.json(data[0]);
+    if (error) return res.status(500).json({ error: error.message }); 
+    res.json(data[0]);
 });
+
 app.put('/admin/platos/:id', async (req, res) => {
-    const { id } = req.params; const { nombre, precio, stock, categoria, id_padre } = req.body;
+    const { id } = req.params; 
+    const { nombre, precio, stock, categoria, id_padre } = req.body;
     const { error } = await supabase.from('platos').update({ nombre, precio, stock: id_padre ? 0 : stock, categoria, id_padre }).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message }); res.json({ message: "Actualizado" });
+    if (error) return res.status(500).json({ error: error.message }); 
+    res.json({ message: "Actualizado" });
 });
+
 app.delete('/admin/platos/:id', async (req, res) => {
     const { error } = await supabase.from('platos').delete().eq('id', req.params.id);
-    if (error) return res.status(500).json({ error: error.message }); res.json({ message: "Eliminado" });
+    if (error) return res.status(500).json({ error: error.message }); 
+    res.json({ message: "Eliminado" });
 });
+
 app.get('/categorias', async (req, res) => {
-    const { data } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
+    const { data, error } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
+
 app.post('/categorias', async (req, res) => {
     const { nombre } = req.body;
-    const { data } = await supabase.from('categorias').insert([{ nombre }]).select();
-    if (error) return res.status(500).json({ error: error.message }); res.json(data[0]);
+    const { data, error } = await supabase.from('categorias').insert([{ nombre }]).select();
+    if (error) return res.status(500).json({ error: error.message }); 
+    res.json(data[0]);
 });
+
 app.delete('/categorias/:id', async (req, res) => {
-    await supabase.from('categorias').delete().eq('id', req.params.id);
+    const { error } = await supabase.from('categorias').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
     res.json({ message: "Eliminado" });
 });
 
