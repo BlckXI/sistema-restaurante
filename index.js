@@ -96,7 +96,7 @@ app.get('/platos', async (req, res) => {
     res.json(data);
 });
 
-// CREAR ORDEN - CON DEBUGGING COMPLETO
+// CREAR ORDEN - VERSIÓN CORREGIDA Y SIN DUPLICADOS
 app.post('/ordenes', async (req, res) => {
     console.log('📨 SOLICITUD POST /ordenes RECIBIDA');
     console.log('📦 CUERPO DE LA SOLICITUD:', JSON.stringify(req.body, null, 2));
@@ -104,11 +104,8 @@ app.post('/ordenes', async (req, res) => {
     const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada, comentarios } = req.body;
     
     console.log('🔍 DATOS EXTRAÍDOS:');
-    console.log('  - Cliente:', cliente);
     console.log('  - Comentarios:', comentarios);
     console.log('  - Tipo de comentarios:', typeof comentarios);
-    console.log('  - ¿Comentarios existe?:', comentarios !== undefined);
-    console.log('  - ¿Comentarios tiene valor?:', comentarios ? 'SÍ' : 'NO');
     
     try {
         // Validar stock...
@@ -125,7 +122,10 @@ app.post('/ordenes', async (req, res) => {
         const { count } = await supabase.from('ordenes').select('*', { count: 'exact', head: true });
         const numeroTicket = (count || 0) + 1;
 
-        // INSERTAR CON COMENTARIOS
+        // CORRECCIÓN: Asegurar que comentarios sea string vacío si es undefined/null
+        const comentariosParaGuardar = comentarios || '';
+
+        // INSERTAR CON COMENTARIOS CORREGIDOS
         const ordenParaGuardar = { 
             cliente, 
             total, 
@@ -135,10 +135,11 @@ app.post('/ordenes', async (req, res) => {
             telefono, 
             numero_diario: numeroTicket, 
             hora_programada,
-            comentarios // ← NUEVO CAMPO
+            comentarios: comentariosParaGuardar // ← CORREGIDO
         };
 
         console.log('💾 DATOS A GUARDAR EN BD:', JSON.stringify(ordenParaGuardar, null, 2));
+        console.log('📝 COMENTARIOS FINALES A GUARDAR:', comentariosParaGuardar);
 
         const { data: ordenData, error: ordenError } = await supabase.from('ordenes')
             .insert([ordenParaGuardar]).select();
@@ -149,7 +150,7 @@ app.post('/ordenes', async (req, res) => {
         }
 
         console.log('✅ ORDEN GUARDADA EN BD:', JSON.stringify(ordenData[0], null, 2));
-        console.log('📝 COMENTARIOS GUARDADOS:', ordenData[0].comentarios);
+        console.log('📝 COMENTARIOS GUARDADOS EN BD:', ordenData[0].comentarios);
 
         // Descontar stock
         for (const item of detalles) {
