@@ -22,7 +22,7 @@ useEffect(() => {
 const cargarOrdenesPendientes = async () => {
   try {
     const { data } = await axios.get(`${URL_BACKEND}/ordenes/pendientes`);
-    //console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
+    console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
     // Debug: mostrar comentarios de cada orden
     //data.forEach((orden, index) => {
       //console.log(`📋 Orden ${index + 1}:`, {
@@ -72,7 +72,7 @@ return (
       )}
 
       {ordenes.map((orden) => {
-        //console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
+        console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
         
         return (
           <div 

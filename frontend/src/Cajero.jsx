@@ -199,10 +199,10 @@ const validarFormulario = () => {
 };
 
 
-//console.log('🚀 ENVIANDO ORDEN AL BACKEND:');
-//console.log('   Comentarios a enviar:', comentarios);
-//console.log('   Tipo:', typeof comentarios);
-//console.log('   ¿String vacío?:', comentarios === '');
+console.log('🚀 ENVIANDO ORDEN AL BACKEND:');
+console.log('   Comentarios a enviar:', comentarios);
+console.log('   Tipo:', typeof comentarios);
+console.log('   ¿String vacío?:', comentarios === '');
 
 const procesarOrden = async () => {
   if (!validarFormulario()) {
@@ -220,8 +220,8 @@ const procesarOrden = async () => {
   if (esRetiro) tipoFinal = 'retiro';
 
   // DEBUG: Ver qué contiene comentarios
-  //console.log('🔍 COMENTARIOS ANTES DE ENVIAR:', comentarios);
-  //console.log('🔍 TIPO DE COMENTARIOS:', typeof comentarios);
+  console.log('🔍 COMENTARIOS ANTES DE ENVIAR:', comentarios);
+  console.log('🔍 TIPO DE COMENTARIOS:', typeof comentarios);
 
   const orden = {
     cliente: nombreFinal,
@@ -234,7 +234,7 @@ const procesarOrden = async () => {
     comentarios: comentarios
   };
 
-  //console.log('📦 ORDEN COMPLETA A ENVIAR:', JSON.stringify(orden, null, 2));
+  console.log('📦 ORDEN COMPLETA A ENVIAR:', JSON.stringify(orden, null, 2));
 
   try {
     await axios.post(`${URL_BACKEND}/ordenes`, orden);
