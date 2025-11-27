@@ -257,7 +257,7 @@ const procesarOrden = async () => {
   } finally {
     setEnviando(false);
   }
-};gk
+};
 
 const mostrarNotificacion = (mensaje, tipo) => {
   setNotificacion({ mensaje, tipo });
