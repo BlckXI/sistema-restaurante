@@ -11,8 +11,8 @@ const [ordenes, setOrdenes] = useState([]);
 useEffect(() => {
   cargarOrdenesPendientes();
   io.on('nueva_orden', (nuevaOrden) => {
-    console.log('📦 NUEVA ORDEN RECIBIDA EN COCINA:', nuevaOrden);
-    console.log('📝 COMENTARIOS EN ORDEN:', nuevaOrden.comentarios);
+    //console.log('📦 NUEVA ORDEN RECIBIDA EN COCINA:', nuevaOrden);
+    //console.log('📝 COMENTARIOS EN ORDEN:', nuevaOrden.comentarios);
     setOrdenes(prev => [...prev, nuevaOrden]);
     playNotificationSound();
   });
@@ -22,16 +22,16 @@ useEffect(() => {
 const cargarOrdenesPendientes = async () => {
   try {
     const { data } = await axios.get(`${URL_BACKEND}/ordenes/pendientes`);
-    console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
+    //console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
     // Debug: mostrar comentarios de cada orden
-    data.forEach((orden, index) => {
-      console.log(`📋 Orden ${index + 1}:`, {
-        id: orden.id,
-        cliente: orden.cliente,
-        comentarios: orden.comentarios,
-        tieneComentarios: !!orden.comentarios
-      });
-    });
+    //data.forEach((orden, index) => {
+      //console.log(`📋 Orden ${index + 1}:`, {
+        //id: orden.id,
+        //cliente: orden.cliente,
+        //comentarios: orden.comentarios,
+        //tieneComentarios: !!orden.comentarios
+      //});
+    //});
     setOrdenes(data);
   } catch (e) { 
     console.log("❌ Error cargando órdenes:", e);
@@ -72,7 +72,7 @@ return (
       )}
 
       {ordenes.map((orden) => {
-        console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
+        //console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
         
         return (
           <div 
@@ -124,13 +124,6 @@ return (
                     <p>📞 {orden.telefono}</p>
                 </div>
             )}
-
-            {/* DEBUG: Mostrar información de comentarios */}
-            <div className="mb-2 p-2 bg-gray-100 rounded text-xs">
-              <p className="font-mono">DEBUG: comentarios = "{orden.comentarios}"</p>
-              <p className="font-mono">Tipo: {typeof orden.comentarios}</p>
-              <p className="font-mono">¿Tiene valor?: {orden.comentarios ? 'SÍ' : 'NO'}</p>
-            </div>
 
             {/* COMENTARIOS ESPECIALES (Si existen) */}
 {orden.comentarios && orden.comentarios !== null && orden.comentarios.trim() !== '' ? (
