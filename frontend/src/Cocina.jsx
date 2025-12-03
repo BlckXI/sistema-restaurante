@@ -84,7 +84,7 @@ return (
             <div className="flex justify-between items-start mb-2 border-b pb-2 border-gray-200">
                 <div>
                     <span className="font-bold text-3xl block text-gray-800">
-                        #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
+                        #{orden.numero_diario || orden.id}
                     </span>
                     <span className="text-sm font-bold text-gray-600 uppercase">
                           {orden.cliente}

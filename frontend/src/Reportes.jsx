@@ -3,7 +3,7 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // ⚠️ REVISA ESTO
+const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; 
 
 export default function Reportes() {
   const [datos, setDatos] = useState(null);
@@ -21,8 +21,19 @@ export default function Reportes() {
   const [modalAnular, setModalAnular] = useState(null); 
   const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null); 
 
+  // NUEVOS ESTADOS PARA FILTROS
+  const [filtroFecha, setFiltroFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [mostrarInventario, setMostrarInventario] = useState(false);
+  const [inventario, setInventario] = useState(null);
+  const [consumoPersonal, setConsumoPersonal] = useState(null);
+  const [comparativa, setComparativa] = useState([]);
+  const [reporteFechaEspecifica, setReporteFechaEspecifica] = useState(null);
+
   useEffect(() => {
     cargarReporte();
+    cargarInventario();
+    cargarConsumoPersonal();
+    cargarComparativa();
   }, []);
 
   const cargarReporte = async () => {
@@ -36,12 +47,53 @@ export default function Reportes() {
     }
   };
 
+  const cargarReportePorFecha = async (fecha) => {
+    try {
+      const res = await axios.get(`${URL_BACKEND}/reportes/por-fecha`, {
+        params: { fecha }
+      });
+      setReporteFechaEspecifica(res.data);
+      mostrarNotificacion(`Reporte cargado para ${fecha}`, "exito");
+    } catch (error) {
+      mostrarNotificacion("Error cargando reporte por fecha", "error");
+    }
+  };
+
+  const cargarInventario = async () => {
+    try {
+      const res = await axios.get(`${URL_BACKEND}/inventario`);
+      setInventario(res.data);
+    } catch (error) {
+      console.error("Error cargando inventario:", error);
+    }
+  };
+
+  const cargarConsumoPersonal = async () => {
+    try {
+      const res = await axios.get(`${URL_BACKEND}/reportes/consumo-personal`);
+      setConsumoPersonal(res.data);
+    } catch (error) {
+      console.error("Error cargando consumo personal:", error);
+    }
+  };
+
+  const cargarComparativa = async (dias = 7) => {
+    try {
+      const res = await axios.get(`${URL_BACKEND}/reportes/comparativa`, {
+        params: { dias }
+      });
+      setComparativa(res.data);
+    } catch (error) {
+      console.error("Error cargando comparativa:", error);
+    }
+  };
+
   const mostrarNotificacion = (mensaje, tipo) => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion(null), 3000);
   };
 
-  // --- GENERACIÓN DE PDF (NUEVO) ---
+  // --- GENERACIÓN DE PDF MEJORADO ---
   const generarPDF = () => {
     if (!datos) return;
     const doc = new jsPDF();
@@ -67,10 +119,29 @@ export default function Reportes() {
             ['TOTAL EN CAJA', `$${datos.dineroEnCaja}`],
         ],
         theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185] }, // Azul
+        headStyles: { fillColor: [41, 128, 185] },
         styles: { fontSize: 12 },
         columnStyles: { 1: { fontStyle: 'bold', halign: 'right' } }
     });
+
+    // NUEVO: Resumen por Tipo de Entrega
+    if (datos.conteoPorTipo) {
+        const startY = doc.lastAutoTable.finalY + 15;
+        doc.text("Resumen por Tipo de Entrega", 14, startY);
+        
+        autoTable(doc, {
+            startY: startY + 5,
+            head: [['Tipo', 'Órdenes', 'Ventas']],
+            body: [
+                ['Domicilio', datos.conteoPorTipo.domicilio || 0, `$${(datos.ventasPorTipo?.domicilio || 0).toFixed(2)}`],
+                ['Retiro', datos.conteoPorTipo.retiro || 0, `$${(datos.ventasPorTipo?.retiro || 0).toFixed(2)}`],
+                ['Mesa', datos.conteoPorTipo.mesa || 0, `$${(datos.ventasPorTipo?.mesa || 0).toFixed(2)}`],
+                ['Personal', datos.conteoPorTipo.personal || 0, `$${(datos.ventasPorTipo?.personal || 0).toFixed(2)}`],
+            ],
+            theme: 'striped',
+            headStyles: { fillColor: [155, 89, 182] } // Morado
+        });
+    }
 
     // Tabla de Gastos
     if (datos.listaGastos.length > 0) {
@@ -80,7 +151,7 @@ export default function Reportes() {
             head: [['Descripción', 'Monto']],
             body: datos.listaGastos.map(g => [g.descripcion, `-$${g.monto.toFixed(2)}`]),
             theme: 'striped',
-            headStyles: { fillColor: [231, 76, 60] } // Rojo
+            headStyles: { fillColor: [231, 76, 60] }
         });
     }
 
@@ -91,8 +162,26 @@ export default function Reportes() {
         head: [['Plato', 'Cantidad']],
         body: datos.rankingPlatos.map(p => [p.nombre, p.cantidad]),
         theme: 'striped',
-        headStyles: { fillColor: [46, 204, 113] } // Verde
+        headStyles: { fillColor: [46, 204, 113] }
     });
+
+    // NUEVO: Inventario Crítico
+    if (inventario && inventario.stockCritico > 0) {
+        doc.text("⚠️ ALERTA: Stock Crítico", 14, doc.lastAutoTable.finalY + 15);
+        autoTable(doc, {
+            startY: doc.lastAutoTable.finalY + 20,
+            head: [['Plato', 'Stock', 'Categoría']],
+            body: inventario.platos
+                .filter(p => p.stock < 5)
+                .map(p => [p.nombre, p.stock, p.categoria]),
+            theme: 'grid',
+            headStyles: { fillColor: [231, 76, 60] },
+            styles: { 
+                fontSize: 10,
+                cellPadding: 2
+            }
+        });
+    }
 
     // Pie de página
     doc.setFontSize(10);
@@ -173,16 +262,31 @@ export default function Reportes() {
         await axios.post(`${URL_BACKEND}/cierre`, { fecha: hoy, monto: parseFloat(datos.dineroEnCaja) });
         setModalCierre(false);
         mostrarNotificacion("✅ Día cerrado correctamente", "exito");
+        cargarReporte();
+        cargarComparativa();
     } catch (error) { mostrarNotificacion("Error al cerrar el día", "error"); }
+  };
+
+  // NUEVA FUNCIÓN: Calcular resumen por tipo
+  const calcularResumenPorTipo = (ordenes) => {
+    const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 };
+    ordenes?.forEach(orden => {
+      if (orden.estado !== 'anulado' && orden.tipo_entrega) {
+        resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1;
+      }
+    });
+    return resumen;
   };
 
   if (cargando) return <div className="p-8 text-center animate-pulse">Cargando finanzas...</div>;
   if (!datos) return <div className="p-8 text-center text-red-500">Error cargando datos.</div>;
 
+  const resumenTipo = calcularResumenPorTipo(datos.listaOrdenes);
+
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6 pb-20 relative">
       
-      {/* --- MODAL ELIMINAR INGRESO --- */}
+      {/* MODALES */}
       {modalEliminarIngreso && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center">
@@ -199,7 +303,6 @@ export default function Reportes() {
         </div>
       )}
 
-      {/* MODALES EXISTENTES */}
       {modalAnular && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -212,6 +315,7 @@ export default function Reportes() {
             </div>
         </div>
       )}
+
       {modalCierre && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-900 bg-opacity-90 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
@@ -224,25 +328,59 @@ export default function Reportes() {
             </div>
         </div>
       )}
+
       {notificacion && (
         <div className={`fixed top-20 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold animate-bounce ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>{notificacion.mensaje}</div>
       )}
 
-      <div className="flex justify-between items-center border-b pb-4">
-        <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
-        <div className="flex gap-2">
-            {/* BOTÓN PDF */}
-            <button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold shadow-sm flex items-center gap-2">
-                🖨️ PDF
+      {/* CABECERA CON FILTROS */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <button 
+              onClick={() => setMostrarInventario(!mostrarInventario)}
+              className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm font-bold hover:bg-gray-200"
+            >
+              {mostrarInventario ? '📊 Ocultar Inventario' : '📦 Ver Inventario'}
             </button>
-            <button onClick={cargarReporte} className="bg-white border border-gray-300 px-4 py-2 rounded hover:bg-gray-100 font-bold shadow-sm">
-                🔄 Actualizar
+            <button 
+              onClick={cargarConsumoPersonal}
+              className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-bold hover:bg-red-200"
+            >
+              👨‍🍳 Consumo Personal
             </button>
+          </div>
+        </div>
+        
+        <div className="flex flex-col md:flex-row gap-2">
+          {/* FILTRO POR FECHA */}
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={filtroFecha}
+              onChange={(e) => setFiltroFecha(e.target.value)}
+              className="border rounded px-3 py-2 text-sm"
+            />
+            <button 
+              onClick={() => cargarReportePorFecha(filtroFecha)}
+              className="bg-purple-600 text-white px-3 py-2 rounded hover:bg-purple-700 font-bold text-sm"
+            >
+              📅 Consultar
+            </button>
+          </div>
+          
+          <button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold shadow-sm flex items-center gap-2">
+            🖨️ PDF
+          </button>
+          <button onClick={cargarReporte} className="bg-white border border-gray-300 px-4 py-2 rounded hover:bg-gray-100 font-bold shadow-sm">
+            🔄 Actualizar
+          </button>
         </div>
       </div>
 
-      {/* TARJETAS DE RESUMEN */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* TARJETAS DE RESUMEN MEJORADAS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <p className="text-gray-500 text-xs font-bold uppercase">Saldo Ayer</p>
             <p className="text-xl font-bold text-gray-700">${datos.saldoInicial}</p>
@@ -264,10 +402,203 @@ export default function Reportes() {
             <p className="text-3xl font-bold">${datos.dineroEnCaja}</p>
             <button onClick={() => setModalCierre(true)} className="mt-2 bg-white text-blue-700 text-xs font-bold py-1 px-3 rounded w-full">🔒 CERRAR</button>
         </div>
+        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <p className="text-purple-600 text-xs font-bold uppercase">Órdenes Hoy</p>
+            <p className="text-xl font-bold text-purple-700">{datos.cantidadOrdenes}</p>
+        </div>
       </div>
 
+      {/* RESUMEN POR TIPO DE ENTREGA */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+        <h2 className="font-bold text-lg mb-4 text-gray-700">📊 Distribución por Tipo de Entrega</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className={`p-4 rounded-lg ${resumenTipo.domicilio > 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className="text-orange-600 text-xs font-bold uppercase">🛵 Domicilio</p>
+            <p className="text-2xl font-bold">{resumenTipo.domicilio || 0}</p>
+          </div>
+          <div className={`p-4 rounded-lg ${resumenTipo.retiro > 0 ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className="text-purple-600 text-xs font-bold uppercase">🛍️ Retiro</p>
+            <p className="text-2xl font-bold">{resumenTipo.retiro || 0}</p>
+          </div>
+          <div className={`p-4 rounded-lg ${resumenTipo.mesa > 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className="text-blue-600 text-xs font-bold uppercase">🍽️ Mesa</p>
+            <p className="text-2xl font-bold">{resumenTipo.mesa || 0}</p>
+          </div>
+          <div className={`p-4 rounded-lg ${resumenTipo.personal > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className="text-red-600 text-xs font-bold uppercase">👨‍🍳 Personal</p>
+            <p className="text-2xl font-bold">{resumenTipo.personal || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* INVENTARIO (SOLO SI SE ACTIVA) */}
+      {mostrarInventario && inventario && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold text-lg text-gray-700">📦 Control de Inventario</h2>
+            <button onClick={cargarInventario} className="text-blue-600 text-sm font-bold">🔄 Actualizar</button>
+          </div>
+          
+          {/* ALERTAS */}
+          {inventario.stockCritico > 0 && (
+            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">⚠️</span>
+                <h3 className="font-bold text-red-700">ALERTA: Stock Crítico ({inventario.stockCritico} productos)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {inventario.platos
+                  .filter(p => p.stock < 5)
+                  .map((plato, index) => (
+                    <div key={index} className="bg-white p-3 rounded border border-red-200">
+                      <p className="font-bold text-gray-800">{plato.nombre}</p>
+                      <p className="text-red-600 font-bold">Stock: {plato.stock}</p>
+                      <p className="text-xs text-gray-500">{plato.categoria}</p>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+
+          {/* RESUMEN INVENTARIO */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gray-50 p-4 rounded border">
+              <p className="text-gray-600 text-xs font-bold uppercase">Total Productos</p>
+              <p className="text-2xl font-bold">{inventario.totalPlatos}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded border border-green-200">
+              <p className="text-green-600 text-xs font-bold uppercase">Stock Normal</p>
+              <p className="text-2xl font-bold">
+                {inventario.platos.filter(p => p.stock >= 10).length}
+              </p>
+            </div>
+            <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+              <p className="text-yellow-600 text-xs font-bold uppercase">Stock Bajo</p>
+              <p className="text-2xl font-bold">{inventario.stockBajo}</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded border border-red-200">
+              <p className="text-red-600 text-xs font-bold uppercase">Stock Crítico</p>
+              <p className="text-2xl font-bold">{inventario.stockCritico}</p>
+            </div>
+          </div>
+
+          {/* TABLA DE INVENTARIO */}
+          <div className="overflow-x-auto max-h-96">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-100 text-gray-600 uppercase sticky top-0">
+                <tr>
+                  <th className="px-4 py-3">Producto</th>
+                  <th className="px-4 py-3">Categoría</th>
+                  <th className="px-4 py-3">Precio</th>
+                  <th className="px-4 py-3">Stock</th>
+                  <th className="px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {inventario.platos.map((plato) => (
+                  <tr key={plato.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{plato.nombre}</td>
+                    <td className="px-4 py-3 text-gray-500">{plato.categoria}</td>
+                    <td className="px-4 py-3 font-bold">${plato.precio.toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`font-bold ${
+                        plato.stock < 5 ? 'text-red-600' : 
+                        plato.stock < 10 ? 'text-orange-600' : 
+                        'text-green-600'
+                      }`}>
+                        {plato.stock}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        plato.stock < 5 ? 'bg-red-100 text-red-700' : 
+                        plato.stock < 10 ? 'bg-orange-100 text-orange-700' : 
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {plato.stock < 5 ? 'CRÍTICO' : plato.stock < 10 ? 'BAJO' : 'NORMAL'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CONSUMO PERSONAL */}
+      {consumoPersonal && consumoPersonal.ordenes.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold text-lg text-red-600">👨‍🍳 Consumo Personal del Día</h2>
+            <button onClick={() => setConsumoPersonal(null)} className="text-gray-400">×</button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-red-50 p-4 rounded border border-red-200">
+              <p className="text-red-600 text-xs font-bold uppercase">Total Consumos</p>
+              <p className="text-2xl font-bold">{consumoPersonal.ordenes.length}</p>
+            </div>
+            <div className="bg-orange-50 p-4 rounded border border-orange-200">
+              <p className="text-orange-600 text-xs font-bold uppercase">Platos Consumidos</p>
+              <p className="text-2xl font-bold">{consumoPersonal.totalPlatos}</p>
+            </div>
+            <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+              <p className="text-yellow-600 text-xs font-bold uppercase">Valor Estimado</p>
+              <p className="text-2xl font-bold">$0.00</p>
+            </div>
+          </div>
+
+          {consumoPersonal.resumenPlatos && consumoPersonal.resumenPlatos.length > 0 && (
+            <div>
+              <h3 className="font-bold text-gray-600 mb-2">Platos más consumidos:</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {consumoPersonal.resumenPlatos.slice(0, 8).map((item, index) => (
+                  <div key={index} className="bg-gray-50 p-3 rounded border">
+                    <p className="font-bold text-gray-800">{item.nombre}</p>
+                    <p className="text-red-600 font-bold">{item.cantidad} unidades</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* REPORTE POR FECHA ESPECÍFICA */}
+      {reporteFechaEspecifica && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold text-lg text-purple-600">📅 Reporte: {reporteFechaEspecifica.fecha}</h2>
+            <button onClick={() => setReporteFechaEspecifica(null)} className="text-gray-400">×</button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-purple-50 p-4 rounded border border-purple-200">
+              <p className="text-purple-600 text-xs font-bold uppercase">Ventas</p>
+              <p className="text-2xl font-bold">${reporteFechaEspecifica.ventas}</p>
+            </div>
+            <div className="bg-blue-50 p-4 rounded border border-blue-200">
+              <p className="text-blue-600 text-xs font-bold uppercase">Dinero en Caja</p>
+              <p className="text-2xl font-bold">${reporteFechaEspecifica.dineroEnCaja}</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded border border-red-200">
+              <p className="text-red-600 text-xs font-bold uppercase">Anulado</p>
+              <p className="text-2xl font-bold">${reporteFechaEspecifica.anulado}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded border border-green-200">
+              <p className="text-green-600 text-xs font-bold uppercase">Total Órdenes</p>
+              <p className="text-2xl font-bold">
+                {Object.values(reporteFechaEspecifica.conteoPorTipo || {}).reduce((a, b) => a + b, 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECCIÓN ORIGINAL DE GASTOS, INGRESOS Y RANKING */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* GASTOS */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
             <h2 className="font-bold text-lg mb-4 text-red-600">💸 Registrar Gastos</h2>
@@ -339,7 +670,10 @@ export default function Reportes() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-10">
         <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
             <h3 className="font-bold text-lg text-gray-700">📜 Historial de Comandas</h3>
-            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado}</span>
+            <div className="flex gap-2">
+              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado}</span>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Total: {datos.listaOrdenes.length}</span>
+            </div>
         </div>
         <div className="overflow-x-auto max-h-96">
             <table className="w-full text-left text-sm">
@@ -347,6 +681,7 @@ export default function Reportes() {
                     <tr>
                         <th className="px-4 py-3">Ticket</th>
                         <th className="px-4 py-3">Cliente</th>
+                        <th className="px-4 py-3">Tipo</th>
                         <th className="px-4 py-3">Estado</th>
                         <th className="px-4 py-3">Total</th>
                         <th className="px-4 py-3 text-right">Acciones</th>
@@ -357,6 +692,15 @@ export default function Reportes() {
                         <tr key={orden.id} className={`transition-colors ${orden.estado === 'anulado' ? 'bg-red-50 opacity-60' : 'hover:bg-gray-50'}`}>
                             <td className="px-4 py-3 font-bold text-gray-700">#{orden.numero_diario > 0 ? orden.numero_diario : orden.id}</td>
                             <td className="px-4 py-3 font-medium">{orden.cliente}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-bold border
+                                  ${orden.tipo_entrega === 'domicilio' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                                    orden.tipo_entrega === 'retiro' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                    orden.tipo_entrega === 'personal' ? 'bg-red-100 text-red-700 border-red-200' :
+                                    'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                  {orden.tipo_entrega.toUpperCase()}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                                 <span className={`px-2 py-1 rounded-full text-xs font-bold border
                                     ${orden.estado === 'listo' ? 'bg-green-100 text-green-700 border-green-200' : 
