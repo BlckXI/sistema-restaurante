@@ -55,6 +55,7 @@ const playNotificationSound = () => {
 const getCardStyle = (tipo) => {
     if (tipo === 'domicilio') return 'border-orange-500 bg-orange-50';
     if (tipo === 'retiro') return 'border-purple-500 bg-purple-50';
+    if (tipo === 'personal') return 'border-red-500 bg-red-50';
     return 'border-blue-500 bg-white';
 };
 
@@ -102,6 +103,11 @@ return (
                 {orden.tipo_entrega === 'retiro' && (
                     <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-purple-200">
                         🛍️ RETIRO
+                    </span>
+                )}
+                {orden.tipo_entrega === 'personal' && (
+                    <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-red-200">
+                        👨‍🍳 PERSONAL
                     </span>
                 )}
             </div>
