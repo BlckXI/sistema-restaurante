@@ -159,14 +159,14 @@ const calcularEfectivoPorTipo = (ordenes) => {
                         cant++;
                         const detalles = o.detalles || [];
                         const subtotalOrden = detalles.reduce((sum, item) => sum + ((item.precio || 0) * (item.cantidad || 1)), 0);
-                        const totalOrden = parseFloat(o.total || 0);
+                        const totalOrden = parseFloat(o.total || 0); // Esto vendrá como 0 si es personal
                         
                         let envioOrden = totalOrden - subtotalOrden;
                         if (envioOrden < 0) envioOrden = 0;
 
-                        totalComida += subtotalOrden;
+                        totalComida += subtotalOrden; // Valor de la comida (aunque no se cobre)
                         totalEnvio += envioOrden;
-                        totalGeneral += totalOrden;
+                        totalGeneral += totalOrden; // Dinero real (0 si es personal)
                     }
                 });
                 return { cant, totalComida, totalEnvio, totalGeneral };
@@ -186,8 +186,9 @@ const calcularEfectivoPorTipo = (ordenes) => {
                     ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`],
                     
                     // --- CAMBIO VISUAL EN EL PDF ---
-                    // Mostramos $0.00 como valor contable, y entre paréntesis el valor de inventario consumido
-                    ['Personal', per.cant, `$0.00 (Consumo: $${per.totalGeneral.toFixed(2)})`], 
+                    // totalGeneral será $0.00 (dinero real)
+                    // totalComida será el valor de los platos (referencia)
+                    ['Personal', per.cant, `$${per.totalGeneral.toFixed(2)} (Valor: $${per.totalComida.toFixed(2)})`], 
                     // -------------------------------
 
                     [

@@ -230,9 +230,12 @@ export default function Cajero() {
     if (esRetiro) tipoFinal = 'retiro';
     if (esPersonal) tipoFinal = 'personal';
 
+    // --- CORRECCIÓN CLAVE: SI ES PERSONAL, EL TOTAL A GUARDAR ES 0 ---
+    const totalFinalParaGuardar = esPersonal ? 0 : (subtotal + costoEnvio);
+
     const orden = {
       cliente: nombreFinal,
-      total: subtotal + costoEnvio,
+      total: totalFinalParaGuardar, // Aquí forzamos el 0 si es personal
       detalles: carrito,
       tipo_entrega: tipoFinal,
       direccion: esDomicilio ? direccion : '', 
