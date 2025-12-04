@@ -184,8 +184,12 @@ const calcularEfectivoPorTipo = (ordenes) => {
                     ['Domicilio', dom.cant, `$${dom.totalComida.toFixed(2)} + $${dom.totalEnvio.toFixed(2)} (Env) = $${dom.totalGeneral.toFixed(2)}`],
                     ['Retiro', ret.cant, `$${ret.totalGeneral.toFixed(2)}`],
                     ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`],
-                    // AQUÍ ESTÁ EL CAMBIO: Ahora mostramos el valor de Personal
-                    ['Personal', per.cant, `$0.00 (Valor real: $${per.totalGeneral.toFixed(2)})`],
+                    
+                    // --- CAMBIO VISUAL EN EL PDF ---
+                    // Mostramos $0.00 como valor contable, y entre paréntesis el valor de inventario consumido
+                    ['Personal', per.cant, `$0.00 (Consumo: $${per.totalGeneral.toFixed(2)})`], 
+                    // -------------------------------
+
                     [
                         { content: 'TOTAL VENTAS', styles: { fontStyle: 'bold' } }, 
                         { content: datos.cantidadOrdenes || 0, styles: { fontStyle: 'bold' } }, 
