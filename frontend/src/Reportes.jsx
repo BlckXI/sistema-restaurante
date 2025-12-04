@@ -78,7 +78,7 @@ const calcularEfectivoPorTipo = (ordenes) => {
             // 1. OBTENER INVENTARIO (Async)
             let inventario = [];
             try {
-                const resInventario = await axios.get(`${URL_BACKEND}/productos`);
+                const resInventario = await axios.get(`${URL_BACKEND}/platos`);
                 inventario = resInventario.data || [];
             } catch (error) {
                 console.error("Error obteniendo inventario", error);
@@ -108,7 +108,7 @@ const calcularEfectivoPorTipo = (ordenes) => {
             
             doc.setFontSize(10);
             doc.setTextColor(100);
-            doc.text("Restaurante Monte Sión", 14, 26);
+            doc.text("Restaurante D' La Casa", 14, 26);
             doc.setTextColor(0);
             doc.text(`Fecha: ${fechaHoy}`, 14, 35);
             doc.text(`Generado: ${new Date().toLocaleTimeString()}`, 14, 40);
