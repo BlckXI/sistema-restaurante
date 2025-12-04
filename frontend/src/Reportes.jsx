@@ -21,10 +21,6 @@ export default function Reportes() {
     const [modalAnular, setModalAnular] = useState(null);
     const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null);
 
-    // Estados para datos adicionales (opcionales según tu lógica original)
-    const [inventario, setInventario] = useState(null);
-    const [consumoPersonal, setConsumoPersonal] = useState(null);
-
     useEffect(() => {
         cargarReporte();
     }, []);
@@ -45,7 +41,7 @@ export default function Reportes() {
         setTimeout(() => setNotificacion(null), 3000);
     };
 
-    // --- FUNCIONES DE LÓGICA (Definidas aquí para usarlas en render y PDF) ---
+    // --- FUNCIONES AUXILIARES DE CÁLCULO ---
     const calcularResumenPorTipo = (ordenes) => {
         const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 };
         ordenes?.forEach(orden => {
@@ -64,6 +60,144 @@ export default function Reportes() {
             }
         });
         return efectivo;
+    };
+
+    // --- GENERACIÓN DE PDF MODIFICADA ---
+    const generarPDF = () => {
+        if (!datos) {
+            mostrarNotificacion("No hay datos para generar PDF", "error");
+            return;
+        }
+
+        const doc = new jsPDF();
+        const hoy = new Date().toLocaleDateString('es-ES', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        // Título
+        doc.setFontSize(22);
+        doc.setTextColor(41, 128, 185);
+        doc.text("REPORTE FINANCIERO - MONTE SIÓN", 14, 20);
+
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Fecha: ${hoy}`, 14, 30);
+        doc.text(`Generado: ${new Date().toLocaleTimeString()}`, 14, 36);
+
+        let yPos = 45;
+
+        // 1. RESUMEN FINANCIERO (Sin cambios)
+        doc.setFontSize(16);
+        doc.setTextColor(52, 152, 219);
+        doc.text("1. RESUMEN FINANCIERO", 14, yPos);
+        yPos += 10;
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Concepto', 'Monto ($)']],
+            body: [
+                ['Saldo Inicial del Día', `$${datos.saldoInicial}`],
+                ['+ Ventas Totales', `$${datos.ingresoVentas}`],
+                ['+ Ingresos Extras', `$${datos.totalIngresosExtras}`],
+                ['- Gastos Operativos', `-$${datos.totalGastos}`],
+                ['', ''],
+                [{ content: 'TOTAL EN CAJA', styles: { fontStyle: 'bold', fillColor: [52, 152, 219] } },
+                { content: `$${datos.dineroEnCaja}`, styles: { fontStyle: 'bold', fillColor: [52, 152, 219] } }]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 11, cellPadding: 5 },
+            columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+        });
+
+        yPos = doc.lastAutoTable.finalY + 15;
+
+        // 2. DETALLE DE VENTAS (MODIFICADO SEGÚN SOLICITUD)
+        doc.setFontSize(16);
+        doc.setTextColor(155, 89, 182);
+        doc.text("2. DETALLE POR TIPO DE PEDIDO", 14, yPos);
+        yPos += 10;
+
+        // Función interna para calcular desgloses (Plato vs Envío)
+        const obtenerDatosDesglosados = (tipo) => {
+            let totalPlatos = 0;
+            let totalEnvios = 0;
+            let totalGeneral = 0;
+            let cantidad = 0;
+
+            datos.listaOrdenes.forEach(o => {
+                if (o.estado !== 'anulado' && o.tipo_entrega === tipo) {
+                    cantidad++;
+                    // Recalculamos el subtotal de los items para saber cuánto es comida
+                    const subtotalComida = o.detalles.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+                    const costoEnvio = o.total - subtotalComida; // La diferencia es el envío
+
+                    totalPlatos += subtotalComida;
+                    // Solo sumamos envío si es positivo (evita errores de redondeo pequeños)
+                    totalEnvios += (costoEnvio > 0.01 ? costoEnvio : 0);
+                    totalGeneral += o.total;
+                }
+            });
+
+            return { totalPlatos, totalEnvios, totalGeneral, cantidad };
+        };
+
+        const datosDomicilio = obtenerDatosDesglosados('domicilio');
+        const datosRetiro = obtenerDatosDesglosados('retiro');
+        const datosMesa = obtenerDatosDesglosados('mesa');
+        const datosPersonal = obtenerDatosDesglosados('personal'); // Solo nos importa cantidad
+
+        // Construimos las filas según el formato solicitado
+        const cuerpoTabla = [
+            // FILA DOMICILIO
+            [
+                'Domicilio',
+                datosDomicilio.cantidad,
+                `$${datosDomicilio.totalPlatos.toFixed(2)} + $${datosDomicilio.totalEnvios.toFixed(2)} = $${datosDomicilio.totalGeneral.toFixed(2)}`
+            ],
+            // FILA RETIRO
+            [
+                'Retiro',
+                datosRetiro.cantidad,
+                `$${datosRetiro.totalGeneral.toFixed(2)}`
+            ],
+            // FILA MESA
+            [
+                'Mesa',
+                datosMesa.cantidad,
+                `$${datosMesa.totalGeneral.toFixed(2)}`
+            ],
+            // FILA PERSONAL
+            [
+                'Personal',
+                datosPersonal.cantidad,
+                'GRATUITO' // Formato solicitado
+            ],
+            // FILA TOTAL
+            [
+                { content: 'TOTAL GENERAL', styles: { fontStyle: 'bold' } },
+                { content: datos.cantidadOrdenes, styles: { fontStyle: 'bold' } },
+                { content: `$${datos.ingresoVentas.toFixed(2)}`, styles: { fontStyle: 'bold' } }
+            ]
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Tipo de Pedido', 'Cant.', 'Detalle Monetario']], // Encabezados cambiados
+            body: cuerpoTabla,
+            theme: 'striped',
+            headStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 10, cellPadding: 4 },
+            columnStyles: {
+                0: { fontStyle: 'bold' },
+                1: { halign: 'center' },
+                2: { halign: 'right' } // Alineamos montos a la derecha
+            }
+        });
+
+        const nombreArchivo = `Reporte_Financiero_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(nombreArchivo);
+        mostrarNotificacion("✅ Reporte PDF generado correctamente", "exito");
     };
 
     // --- ACCIONES DE API ---
@@ -166,121 +300,6 @@ export default function Reportes() {
         }
     };
 
-    // --- GENERACIÓN DE PDF ---
-    const generarPDF = () => {
-        if (!datos) {
-            mostrarNotificacion("No hay datos para generar PDF", "error");
-            return;
-        }
-
-        const doc = new jsPDF();
-        const hoy = new Date().toLocaleDateString('es-ES', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
-
-        // Título
-        doc.setFontSize(22);
-        doc.setTextColor(41, 128, 185);
-        doc.text("REPORTE FINANCIERO - MONTE SIÓN", 14, 20);
-
-        doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Fecha: ${hoy}`, 14, 30);
-        doc.text(`Generado: ${new Date().toLocaleTimeString()}`, 14, 36);
-
-        let yPos = 45;
-
-        // 1. RESUMEN FINANCIERO
-        doc.setFontSize(16);
-        doc.setTextColor(52, 152, 219);
-        doc.text("1. RESUMEN FINANCIERO", 14, yPos);
-        yPos += 10;
-
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Concepto', 'Monto ($)']],
-            body: [
-                ['Saldo Inicial del Día', `$${datos.saldoInicial}`],
-                ['+ Ventas Totales', `$${datos.ingresoVentas}`],
-                ['+ Ingresos Extras', `$${datos.totalIngresosExtras}`],
-                ['- Gastos Operativos', `-$${datos.totalGastos}`],
-                ['', ''],
-                [{ content: 'TOTAL EN CAJA', styles: { fontStyle: 'bold', fillColor: [52, 152, 219] } },
-                { content: `$${datos.dineroEnCaja}`, styles: { fontStyle: 'bold', fillColor: [52, 152, 219] } }]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-            styles: { fontSize: 11, cellPadding: 5 },
-            columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
-        });
-
-        yPos = doc.lastAutoTable.finalY + 15;
-
-        // 2. RESUMEN POR TIPO DE ENTREGA
-        doc.setFontSize(16);
-        doc.setTextColor(155, 89, 182);
-        doc.text("2. RESUMEN POR TIPO DE ENTREGA", 14, yPos);
-        yPos += 10;
-
-        const resumenTipo = calcularResumenPorTipo(datos.listaOrdenes);
-        const efectivoTipo = calcularEfectivoPorTipo(datos.listaOrdenes);
-
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Tipo', 'Cantidad', '%', 'Efectivo', '% Ventas']],
-            body: [
-                [
-                    'Domicilio',
-                    resumenTipo.domicilio || 0,
-                    `${((resumenTipo.domicilio || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`,
-                    `$${(efectivoTipo.domicilio || 0).toFixed(2)}`,
-                    `${datos.ingresoVentas > 0 ? ((efectivoTipo.domicilio || 0) / datos.ingresoVentas * 100).toFixed(1) : '0'}%`
-                ],
-                [
-                    'Retiro',
-                    resumenTipo.retiro || 0,
-                    `${((resumenTipo.retiro || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`,
-                    `$${(efectivoTipo.retiro || 0).toFixed(2)}`,
-                    `${datos.ingresoVentas > 0 ? ((efectivoTipo.retiro || 0) / datos.ingresoVentas * 100).toFixed(1) : '0'}%`
-                ],
-                [
-                    'Mesa',
-                    resumenTipo.mesa || 0,
-                    `${((resumenTipo.mesa || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`,
-                    `$${(efectivoTipo.mesa || 0).toFixed(2)}`,
-                    `${datos.ingresoVentas > 0 ? ((efectivoTipo.mesa || 0) / datos.ingresoVentas * 100).toFixed(1) : '0'}%`
-                ],
-                [
-                    'Personal',
-                    resumenTipo.personal || 0,
-                    `${((resumenTipo.personal || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`,
-                    `$${(efectivoTipo.personal || 0).toFixed(2)}`,
-                    `${datos.ingresoVentas > 0 ? ((efectivoTipo.personal || 0) / datos.ingresoVentas * 100).toFixed(1) : '0'}%`
-                ],
-                [
-                    { content: 'TOTAL', styles: { fontStyle: 'bold' } },
-                    { content: datos.cantidadOrdenes, styles: { fontStyle: 'bold' } },
-                    { content: '100%', styles: { fontStyle: 'bold' } },
-                    { content: `$${datos.ingresoVentas.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                    { content: '100%', styles: { fontStyle: 'bold' } }
-                ]
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
-            styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: {
-                1: { halign: 'center' },
-                2: { halign: 'center' },
-                3: { halign: 'right' },
-                4: { halign: 'center' }
-            }
-        });
-
-        const nombreArchivo = `Reporte_Financiero_${new Date().toISOString().split('T')[0]}.pdf`;
-        doc.save(nombreArchivo);
-        mostrarNotificacion("✅ Reporte PDF generado exitosamente", "exito");
-    };
-
     // --- RENDERIZADO CONDICIONAL: LOADING ---
     if (cargando) {
         return (
@@ -299,11 +318,10 @@ export default function Reportes() {
         );
     }
 
-    // --- PREPARACIÓN DE DATOS PARA RENDERIZADO ---
+    // Preparación de datos para la vista web (Mantenemos los emojis AQUÍ porque en web se ven bien)
     const resumenTipo = calcularResumenPorTipo(datos.listaOrdenes);
     const efectivoPorTipo = calcularEfectivoPorTipo(datos.listaOrdenes);
 
-    // Configuración para el mapeo en JSX (Faltaba en tu código original)
     const tipoConfig = {
         domicilio: { emoji: '🛵', label: 'Domicilio' },
         retiro: { emoji: '🛍️', label: 'Retiro' },
@@ -484,7 +502,7 @@ export default function Reportes() {
                 </div>
             </div>
 
-            {/* SECCIÓN DE GASTOS, INGRESOS Y RANKING */}
+            {/* SECCIÓN DE GASTOS, INGRESOS Y RANKING (Sin cambios en JSX) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 {/* GASTOS */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">

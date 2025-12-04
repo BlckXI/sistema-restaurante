@@ -40,7 +40,7 @@ export default function Login() {
       <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
             <span className="text-4xl">🍔</span>
-            <h1 className="text-2xl font-bold text-gray-800 mt-2">Variedades Monte Sion</h1>
+            <h1 className="text-2xl font-bold text-gray-800 mt-2">D' La Casa</h1>
             <p className="text-gray-500 text-sm">Acceso exclusivo para personal</p>
         </div>
 
