@@ -185,7 +185,7 @@ const calcularEfectivoPorTipo = (ordenes) => {
                     ['Retiro', ret.cant, `$${ret.totalGeneral.toFixed(2)}`],
                     ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`],
                     // AQUÍ ESTÁ EL CAMBIO: Ahora mostramos el valor de Personal
-                    ['Personal', per.cant, `$${per.totalGeneral.toFixed(2)}`], 
+                    ['Personal', per.cant, `$0.00 (Valor real: $${per.totalGeneral.toFixed(2)})`],
                     [
                         { content: 'TOTAL VENTAS', styles: { fontStyle: 'bold' } }, 
                         { content: datos.cantidadOrdenes || 0, styles: { fontStyle: 'bold' } }, 

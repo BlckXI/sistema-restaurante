@@ -538,11 +538,18 @@ const { data: cierre } = await supabase.from('cierres')
 let ventas = 0;
 let conteoOrdenes = 0;
 
-if (ordenes) {
+if(ordenes) {
     ordenes.forEach(o => {
-        if (o.estado !== 'anulado') {
-            ventas += o.total;
-            conteoOrdenes++;
+        if (o.estado === 'anulado') {
+            anulado += o.total;
+        } else {
+            // ✅ CORRECCIÓN: Solo sumar al dinero si NO es personal
+            if (o.tipo_entrega !== 'personal') {
+                ventas += o.total;
+            }
+            
+            validas++;
+            o.detalles.forEach(i => conteo[i.nombre] = (conteo[i.nombre] || 0) + i.cantidad);
         }
     });
 }
