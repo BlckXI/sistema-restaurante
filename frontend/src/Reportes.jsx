@@ -22,18 +22,10 @@ export default function Reportes() {
   const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null); 
 
   // NUEVOS ESTADOS PARA FILTROS
-  const [filtroFecha, setFiltroFecha] = useState(new Date().toISOString().split('T')[0]);
-  const [mostrarInventario, setMostrarInventario] = useState(false);
-  const [inventario, setInventario] = useState(null);
-  const [consumoPersonal, setConsumoPersonal] = useState(null);
   const [comparativa, setComparativa] = useState([]);
-  const [reporteFechaEspecifica, setReporteFechaEspecifica] = useState(null);
 
   useEffect(() => {
     cargarReporte();
-    cargarInventario();
-    cargarConsumoPersonal();
-    cargarComparativa();
   }, []);
 
   const cargarReporte = async () => {
@@ -93,190 +85,421 @@ export default function Reportes() {
     setTimeout(() => setNotificacion(null), 3000);
   };
 
-  // --- GENERACIÓN DE PDF MEJORADO ---
-  const generarPDF = () => {
-    if (!datos) return;
-    const doc = new jsPDF();
-    const hoy = new Date().toLocaleDateString();
+// --- GENERACIÓN DE PDF MEJORADO ---
+const generarPDF = () => {
+  if (!datos || !inventario) return;
+  const doc = new jsPDF();
+  const hoy = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
-    // Título
-    doc.setFontSize(22);
-    doc.text("Reporte de Cierre de Caja", 14, 20);
-    
-    doc.setFontSize(12);
-    doc.text(`Fecha: ${hoy}`, 14, 30);
-    doc.text("Monte Sion Variedades", 14, 36);
-
-    // Resumen Financiero
-    autoTable(doc, {
-        startY: 45,
-        head: [['Concepto', 'Monto']],
-        body: [
-            ['Saldo Inicial (Ayer)', `$${datos.saldoInicial}`],
-            ['+ Ventas Comida', `$${datos.ingresoVentas}`],
-            ['+ Ingresos Extras', `$${datos.totalIngresosExtras}`],
-            ['- Gastos Operativos', `-$${datos.totalGastos}`],
-            ['TOTAL EN CAJA', `$${datos.dineroEnCaja}`],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185] },
-        styles: { fontSize: 12 },
-        columnStyles: { 1: { fontStyle: 'bold', halign: 'right' } }
-    });
-
-    // NUEVO: Resumen por Tipo de Entrega
-    if (datos.conteoPorTipo) {
-        const startY = doc.lastAutoTable.finalY + 15;
-        doc.text("Resumen por Tipo de Entrega", 14, startY);
-        
-        autoTable(doc, {
-            startY: startY + 5,
-            head: [['Tipo', 'Órdenes', 'Ventas']],
-            body: [
-                ['Domicilio', datos.conteoPorTipo.domicilio || 0, `$${(datos.ventasPorTipo?.domicilio || 0).toFixed(2)}`],
-                ['Retiro', datos.conteoPorTipo.retiro || 0, `$${(datos.ventasPorTipo?.retiro || 0).toFixed(2)}`],
-                ['Mesa', datos.conteoPorTipo.mesa || 0, `$${(datos.ventasPorTipo?.mesa || 0).toFixed(2)}`],
-                ['Personal', datos.conteoPorTipo.personal || 0, `$${(datos.ventasPorTipo?.personal || 0).toFixed(2)}`],
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [155, 89, 182] } // Morado
-        });
-    }
-
-    // Tabla de Gastos
-    if (datos.listaGastos.length > 0) {
-        doc.text("Detalle de Gastos", 14, doc.lastAutoTable.finalY + 15);
-        autoTable(doc, {
-            startY: doc.lastAutoTable.finalY + 20,
-            head: [['Descripción', 'Monto']],
-            body: datos.listaGastos.map(g => [g.descripcion, `-$${g.monto.toFixed(2)}`]),
-            theme: 'striped',
-            headStyles: { fillColor: [231, 76, 60] }
-        });
-    }
-
-    // Tabla de Ventas (Ranking)
-    doc.text("Resumen de Ventas (Top Platos)", 14, doc.lastAutoTable.finalY + 15);
-    autoTable(doc, {
-        startY: doc.lastAutoTable.finalY + 20,
-        head: [['Plato', 'Cantidad']],
-        body: datos.rankingPlatos.map(p => [p.nombre, p.cantidad]),
-        theme: 'striped',
-        headStyles: { fillColor: [46, 204, 113] }
-    });
-
-    // NUEVO: Inventario Crítico
-    if (inventario && inventario.stockCritico > 0) {
-        doc.text("⚠️ ALERTA: Stock Crítico", 14, doc.lastAutoTable.finalY + 15);
-        autoTable(doc, {
-            startY: doc.lastAutoTable.finalY + 20,
-            head: [['Plato', 'Stock', 'Categoría']],
-            body: inventario.platos
-                .filter(p => p.stock < 5)
-                .map(p => [p.nombre, p.stock, p.categoria]),
-            theme: 'grid',
-            headStyles: { fillColor: [231, 76, 60] },
-            styles: { 
-                fontSize: 10,
-                cellPadding: 2
-            }
-        });
-    }
-
-    // Pie de página
-    doc.setFontSize(10);
-    doc.text("Reporte generado automáticamente por el sistema.", 14, doc.internal.pageSize.height - 10);
-
-    doc.save(`Cierre_Caja_${hoy.replace(/\//g, '-')}.pdf`);
-    mostrarNotificacion("PDF descargado", "exito");
-  };
-
-  // --- GASTOS ---
-  const registrarGasto = async (e) => {
-    e.preventDefault();
-    if (!descGasto || !montoGasto) return;
-    try {
-        await axios.post(`${URL_BACKEND}/gastos`, { descripcion: descGasto, monto: parseFloat(montoGasto) });
-        setDescGasto(''); setMontoGasto('');
-        mostrarNotificacion("Gasto registrado", "exito");
-        cargarReporte();
-    } catch (error) { mostrarNotificacion("Error al guardar gasto", "error"); }
-  };
-
-  const eliminarGasto = async (id) => {
-    if(!window.confirm("¿Borrar este gasto?")) return;
-    try {
-        await axios.delete(`${URL_BACKEND}/gastos/${id}`);
-        mostrarNotificacion("Gasto eliminado", "exito");
-        cargarReporte();
-    } catch (error) { mostrarNotificacion("Error al eliminar", "error"); }
-  };
-
-  // --- INGRESOS EXTRAS ---
-  const registrarIngreso = async (e) => {
-    e.preventDefault();
-    if (!descIngreso || !montoIngreso) return;
-    try {
-        await axios.post(`${URL_BACKEND}/ingresos-extras`, { descripcion: descIngreso, monto: parseFloat(montoIngreso) });
-        setDescIngreso(''); setMontoIngreso('');
-        mostrarNotificacion("Ingreso extra registrado", "exito");
-        cargarReporte();
-    } catch (error) { mostrarNotificacion("Error al guardar ingreso", "error"); }
-  };
-
-  const eliminarIngreso = (id) => {
-    setModalEliminarIngreso(id);
-  };
-
-  const confirmarEliminarIngreso = async () => {
-    if(!modalEliminarIngreso) return;
-    try {
-        await axios.delete(`${URL_BACKEND}/ingresos-extras/${modalEliminarIngreso}`);
-        mostrarNotificacion("Ingreso eliminado correctamente", "exito");
-        cargarReporte();
-    } catch (error) { 
-        mostrarNotificacion("Error al eliminar", "error"); 
-    } finally {
-        setModalEliminarIngreso(null); 
-    }
-  };
-
-  // --- ORDENES Y CIERRE ---
-  const anularOrden = async (id) => {
-    setModalAnular(id); 
-  };
+  // Título
+  doc.setFontSize(22);
+  doc.setTextColor(41, 128, 185); // Azul
+  doc.text("REPORTE COMPLETO - MONTE SIÓN VARIEDADES", 14, 20);
   
-  const ejecutarAnulacion = async () => {
-    if (!modalAnular) return;
-    try {
-        await axios.patch(`${URL_BACKEND}/ordenes/${modalAnular}/anular`);
-        mostrarNotificacion("Orden Anulada y Stock Restaurado", "exito");
-        cargarReporte(); 
-    } catch (error) { mostrarNotificacion("No se pudo anular", "error"); } 
-    finally { setModalAnular(null); }
-  };
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Fecha: ${hoy}`, 14, 30);
+  doc.text(`Generado: ${new Date().toLocaleTimeString()}`, 14, 36);
 
-  const ejecutarCierre = async () => {
-    const hoy = new Date().toISOString().split('T')[0];
-    try {
-        await axios.post(`${URL_BACKEND}/cierre`, { fecha: hoy, monto: parseFloat(datos.dineroEnCaja) });
-        setModalCierre(false);
-        mostrarNotificacion("✅ Día cerrado correctamente", "exito");
-        cargarReporte();
-        cargarComparativa();
-    } catch (error) { mostrarNotificacion("Error al cerrar el día", "error"); }
-  };
+  let yPos = 45;
 
-  // NUEVA FUNCIÓN: Calcular resumen por tipo
-  const calcularResumenPorTipo = (ordenes) => {
-    const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 };
-    ordenes?.forEach(orden => {
-      if (orden.estado !== 'anulado' && orden.tipo_entrega) {
-        resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1;
+  // =========== SECCIÓN 1: RESUMEN FINANCIERO ===========
+  doc.setFontSize(16);
+  doc.setTextColor(52, 152, 219);
+  doc.text("1. RESUMEN FINANCIERO", 14, yPos);
+  yPos += 10;
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Concepto', 'Monto ($)']],
+    body: [
+      ['Saldo Inicial del Día', `$${datos.saldoInicial}`],
+      ['+ Ventas Totales', `$${datos.ingresoVentas}`],
+      ['+ Ingresos Extras', `$${datos.totalIngresosExtras}`],
+      ['- Gastos Operativos', `-$${datos.totalGastos}`],
+      ['', ''],
+      [{content: 'TOTAL EN CAJA', styles: {fontStyle: 'bold', fillColor: [52, 152, 219]}}, 
+       {content: `$${datos.dineroEnCaja}`, styles: {fontStyle: 'bold', fillColor: [52, 152, 219]}}]
+    ],
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [41, 128, 185],
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: { 
+      fontSize: 11,
+      cellPadding: 5
+    },
+    columnStyles: { 
+      1: { halign: 'right', fontStyle: 'bold' }
+    }
+  });
+
+  yPos = doc.lastAutoTable.finalY + 15;
+
+  // =========== SECCIÓN 2: RESUMEN POR TIPO DE ENTREGA ===========
+  doc.setFontSize(16);
+  doc.setTextColor(155, 89, 182);
+  doc.text("2. RESUMEN POR TIPO DE ENTREGA", 14, yPos);
+  yPos += 10;
+
+  // Calcular resumen por tipo
+  const resumenTipo = calcularResumenPorTipo(datos.listaOrdenes);
+  
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Tipo', 'Cantidad Órdenes', 'Porcentaje']],
+    body: [
+      [
+        {content: '🛵 Domicilio', styles: {textColor: [230, 126, 34]}},
+        resumenTipo.domicilio || 0,
+        {content: `${((resumenTipo.domicilio || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`, styles: {textColor: [46, 204, 113]}}
+      ],
+      [
+        {content: '🛍️ Retiro', styles: {textColor: [142, 68, 173]}},
+        resumenTipo.retiro || 0,
+        {content: `${((resumenTipo.retiro || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`, styles: {textColor: [46, 204, 113]}}
+      ],
+      [
+        {content: '🍽️ Mesa', styles: {textColor: [52, 152, 219]}},
+        resumenTipo.mesa || 0,
+        {content: `${((resumenTipo.mesa || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`, styles: {textColor: [46, 204, 113]}}
+      ],
+      [
+        {content: '👨‍🍳 Personal', styles: {textColor: [231, 76, 60]}},
+        resumenTipo.personal || 0,
+        {content: `${((resumenTipo.personal || 0) / datos.cantidadOrdenes * 100).toFixed(1)}%`, styles: {textColor: [231, 76, 60]}}
+      ],
+      [
+        {content: 'TOTAL', styles: {fontStyle: 'bold', fillColor: [241, 196, 15]}},
+        {content: datos.cantidadOrdenes, styles: {fontStyle: 'bold'}},
+        {content: '100%', styles: {fontStyle: 'bold'}}
+      ]
+    ],
+    theme: 'striped',
+    headStyles: { 
+      fillColor: [155, 89, 182],
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: { 
+      fontSize: 10,
+      cellPadding: 4
+    },
+    columnStyles: {
+      0: { cellWidth: 60 },
+      1: { halign: 'center' },
+      2: { halign: 'center' }
+    }
+  });
+
+  yPos = doc.lastAutoTable.finalY + 15;
+
+  // =========== SECCIÓN 3: CONSUMO PERSONAL ===========
+  doc.setFontSize(16);
+  doc.setTextColor(231, 76, 60);
+  doc.text("3. CONSUMO PERSONAL", 14, yPos);
+  yPos += 10;
+
+  if (consumoPersonal && consumoPersonal.ordenes.length > 0) {
+    // Resumen de consumo personal
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Concepto', 'Valor']],
+      body: [
+        ['Total Órdenes Personales', consumoPersonal.ordenes.length],
+        ['Platos Consumidos', consumoPersonal.totalPlatos],
+        ['Valor Estimado', '$0.00'],
+        ['Ahorro Estimado', `$${(consumoPersonal.totalPlatos * 2.5).toFixed(2)}`]
+      ],
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [231, 76, 60],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 10,
+        cellPadding: 4
+      },
+      columnStyles: {
+        1: { halign: 'right', fontStyle: 'bold' }
       }
     });
-    return resumen;
-  };
+
+    yPos = doc.lastAutoTable.finalY + 10;
+
+    // Top 5 platos más consumidos
+    if (consumoPersonal.resumenPlatos && consumoPersonal.resumenPlatos.length > 0) {
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Platos más consumidos por empleados:", 14, yPos);
+      yPos += 7;
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Plato', 'Cantidad']],
+        body: consumoPersonal.resumenPlatos.slice(0, 5).map((item, index) => [
+          index + 1,
+          item.nombre,
+          {content: item.cantidad, styles: {fontStyle: 'bold', textColor: [231, 76, 60]}}
+        ]),
+        theme: 'plain',
+        headStyles: { 
+          fillColor: [245, 245, 245],
+          textColor: [100, 100, 100],
+          fontStyle: 'bold'
+        },
+        styles: { 
+          fontSize: 9,
+          cellPadding: 3,
+          lineColor: [240, 240, 240]
+        },
+        columnStyles: {
+          0: { cellWidth: 15, halign: 'center' },
+          2: { halign: 'center' }
+        }
+      });
+
+      yPos = doc.lastAutoTable.finalY + 10;
+    }
+  } else {
+    doc.setFontSize(11);
+    doc.setTextColor(150, 150, 150);
+    doc.text("No hubo consumo personal hoy.", 14, yPos);
+    yPos += 15;
+  }
+
+  // =========== SECCIÓN 4: CONTROL DE INVENTARIO ===========
+  doc.setFontSize(16);
+  doc.setTextColor(46, 204, 113);
+  doc.text("4. CONTROL DE INVENTARIO", 14, yPos);
+  yPos += 10;
+
+  // Resumen de inventario
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Estado', 'Cantidad Productos', 'Detalle']],
+    body: [
+      [
+        {content: '✅ Stock Normal', styles: {textColor: [46, 204, 113]}},
+        inventario.platos.filter(p => p.stock >= 10).length,
+        'Stock ≥ 10 unidades'
+      ],
+      [
+        {content: '⚠️ Stock Bajo', styles: {textColor: [230, 126, 34]}},
+        inventario.stockBajo,
+        'Stock < 10 unidades'
+      ],
+      [
+        {content: '🚨 Stock Crítico', styles: {textColor: [231, 76, 60]}},
+        inventario.stockCritico,
+        'Stock < 5 unidades'
+      ],
+      [
+        {content: '📦 Total Productos', styles: {fontStyle: 'bold'}},
+        {content: inventario.totalPlatos, styles: {fontStyle: 'bold'}},
+        {content: 'Principales + Porciones', styles: {fontStyle: 'bold'}}
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [46, 204, 113],
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: { 
+      fontSize: 10,
+      cellPadding: 4
+    },
+    columnStyles: {
+      1: { halign: 'center' },
+      2: { fontStyle: 'italic' }
+    }
+  });
+
+  yPos = doc.lastAutoTable.finalY + 10;
+
+  // Alertas de stock crítico
+  const stockCritico = inventario.platos.filter(p => p.stock < 5);
+  if (stockCritico.length > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(231, 76, 60);
+    doc.text("🚨 ALERTAS DE STOCK CRÍTICO:", 14, yPos);
+    yPos += 7;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Plato', 'Categoría', 'Stock Actual', 'Precio']],
+      body: stockCritico.map(p => [
+        p.nombre,
+        p.categoria,
+        {content: p.stock.toString(), styles: {fontStyle: 'bold', textColor: [231, 76, 60]}},
+        `$${p.precio.toFixed(2)}`
+      ]),
+      theme: 'striped',
+      headStyles: { 
+        fillColor: [231, 76, 60],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        2: { halign: 'center' },
+        3: { halign: 'right' }
+      }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 10;
+  }
+
+  // Tabla completa de inventario (solo primera página)
+  doc.setFontSize(12);
+  doc.setTextColor(52, 73, 94);
+  doc.text("Inventario Completo (Primeros 20 productos):", 14, yPos);
+  yPos += 7;
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Producto', 'Categoría', 'Stock', 'Estado', 'Precio']],
+    body: inventario.platos.slice(0, 20).map(p => [
+      p.nombre,
+      p.categoria,
+      p.stock,
+      {content: p.stock < 5 ? 'CRÍTICO' : p.stock < 10 ? 'BAJO' : 'NORMAL', 
+       styles: {
+         textColor: p.stock < 5 ? [231, 76, 60] : p.stock < 10 ? [230, 126, 34] : [46, 204, 113],
+         fontStyle: 'bold'
+       }},
+      `$${p.precio.toFixed(2)}`
+    ]),
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [52, 73, 94],
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: { 
+      fontSize: 8,
+      cellPadding: 2,
+      overflow: 'linebreak',
+      cellWidth: 'wrap'
+    },
+    columnStyles: {
+      0: { cellWidth: 60 },
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'right' }
+    },
+    margin: { left: 14, right: 14 }
+  });
+
+  yPos = doc.lastAutoTable.finalY + 10;
+
+  // =========== SECCIÓN 5: TOP VENTAS ===========
+  if (datos.rankingPlatos && datos.rankingPlatos.length > 0) {
+    doc.addPage();
+    yPos = 20;
+    
+    doc.setFontSize(16);
+    doc.setTextColor(52, 152, 219);
+    doc.text("5. TOP VENTAS DEL DÍA", 14, yPos);
+    yPos += 10;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Posición', 'Plato', 'Cantidad Vendida', 'Popularidad']],
+      body: datos.rankingPlatos.slice(0, 15).map((p, index) => [
+        {content: `#${index + 1}`, styles: {fontStyle: 'bold'}},
+        p.nombre,
+        {content: p.cantidad.toString(), styles: {fontStyle: 'bold', textColor: [41, 128, 185]}},
+        {content: '★'.repeat(Math.min(5, Math.floor(p.cantidad / 3))), styles: {textColor: [241, 196, 15]}}
+      ]),
+      theme: 'striped',
+      headStyles: { 
+        fillColor: [52, 152, 219],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 10,
+        cellPadding: 4
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 30 },
+        2: { halign: 'center', cellWidth: 40 },
+        3: { halign: 'center' }
+      }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // Gráfico de barras simple (textual)
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Distribución de Ventas:", 14, yPos);
+    yPos += 10;
+
+    const maxVentas = datos.rankingPlatos[0]?.cantidad || 1;
+    
+    datos.rankingPlatos.slice(0, 8).forEach((p, index) => {
+      const barWidth = (p.cantidad / maxVentas) * 100;
+      doc.setFillColor(52 + (index * 20), 152, 219);
+      doc.rect(30, yPos, barWidth, 6, 'F');
+      
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text(p.nombre.substring(0, 20), 30 + barWidth + 5, yPos + 4);
+      
+      doc.setTextColor(100, 100, 100);
+      doc.text(p.cantidad.toString(), 14, yPos + 4);
+      
+      yPos += 10;
+    });
+  }
+
+  // Pie de página en todas las páginas
+  const pageCount = doc.internal.getNumberOfPages();
+  for(let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
+    doc.text("Sistema POS Monte Sión Variedades", 14, doc.internal.pageSize.height - 10);
+  }
+
+  // Guardar PDF
+  const nombreArchivo = `Reporte_Completo_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(nombreArchivo);
+  mostrarNotificacion("✅ Reporte PDF generado exitosamente", "exito");
+};
+
+// Función para calcular resumen por tipo
+const calcularResumenPorTipo = (ordenes) => {
+  const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 };
+  ordenes?.forEach(orden => {
+    if (orden.estado !== 'anulado' && orden.tipo_entrega) {
+      resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1;
+    }
+  });
+  return resumen;
+};
+
+// Cargar consumo personal cuando generes el PDF
+useEffect(() => {
+  cargarReporte();
+  cargarInventario();
+  cargarConsumoPersonal(); // Asegúrate de cargarlo
+}, []);
 
   if (cargando) return <div className="p-8 text-center animate-pulse">Cargando finanzas...</div>;
   if (!datos) return <div className="p-8 text-center text-red-500">Error cargando datos.</div>;
@@ -337,39 +560,9 @@ export default function Reportes() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <button 
-              onClick={() => setMostrarInventario(!mostrarInventario)}
-              className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm font-bold hover:bg-gray-200"
-            >
-              {mostrarInventario ? '📊 Ocultar Inventario' : '📦 Ver Inventario'}
-            </button>
-            <button 
-              onClick={cargarConsumoPersonal}
-              className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-bold hover:bg-red-200"
-            >
-              👨‍🍳 Consumo Personal
-            </button>
-          </div>
         </div>
         
         <div className="flex flex-col md:flex-row gap-2">
-          {/* FILTRO POR FECHA */}
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={filtroFecha}
-              onChange={(e) => setFiltroFecha(e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <button 
-              onClick={() => cargarReportePorFecha(filtroFecha)}
-              className="bg-purple-600 text-white px-3 py-2 rounded hover:bg-purple-700 font-bold text-sm"
-            >
-              📅 Consultar
-            </button>
-          </div>
-          
           <button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold shadow-sm flex items-center gap-2">
             🖨️ PDF
           </button>
@@ -431,102 +624,6 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* INVENTARIO (SOLO SI SE ACTIVA) */}
-      {mostrarInventario && inventario && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-lg text-gray-700">📦 Control de Inventario</h2>
-            <button onClick={cargarInventario} className="text-blue-600 text-sm font-bold">🔄 Actualizar</button>
-          </div>
-          
-          {/* ALERTAS */}
-          {inventario.stockCritico > 0 && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xl">⚠️</span>
-                <h3 className="font-bold text-red-700">ALERTA: Stock Crítico ({inventario.stockCritico} productos)</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {inventario.platos
-                  .filter(p => p.stock < 5)
-                  .map((plato, index) => (
-                    <div key={index} className="bg-white p-3 rounded border border-red-200">
-                      <p className="font-bold text-gray-800">{plato.nombre}</p>
-                      <p className="text-red-600 font-bold">Stock: {plato.stock}</p>
-                      <p className="text-xs text-gray-500">{plato.categoria}</p>
-                    </div>
-                  ))
-                }
-              </div>
-            </div>
-          )}
-
-          {/* RESUMEN INVENTARIO */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gray-50 p-4 rounded border">
-              <p className="text-gray-600 text-xs font-bold uppercase">Total Productos</p>
-              <p className="text-2xl font-bold">{inventario.totalPlatos}</p>
-            </div>
-            <div className="bg-green-50 p-4 rounded border border-green-200">
-              <p className="text-green-600 text-xs font-bold uppercase">Stock Normal</p>
-              <p className="text-2xl font-bold">
-                {inventario.platos.filter(p => p.stock >= 10).length}
-              </p>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
-              <p className="text-yellow-600 text-xs font-bold uppercase">Stock Bajo</p>
-              <p className="text-2xl font-bold">{inventario.stockBajo}</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded border border-red-200">
-              <p className="text-red-600 text-xs font-bold uppercase">Stock Crítico</p>
-              <p className="text-2xl font-bold">{inventario.stockCritico}</p>
-            </div>
-          </div>
-
-          {/* TABLA DE INVENTARIO */}
-          <div className="overflow-x-auto max-h-96">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-100 text-gray-600 uppercase sticky top-0">
-                <tr>
-                  <th className="px-4 py-3">Producto</th>
-                  <th className="px-4 py-3">Categoría</th>
-                  <th className="px-4 py-3">Precio</th>
-                  <th className="px-4 py-3">Stock</th>
-                  <th className="px-4 py-3">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {inventario.platos.map((plato) => (
-                  <tr key={plato.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{plato.nombre}</td>
-                    <td className="px-4 py-3 text-gray-500">{plato.categoria}</td>
-                    <td className="px-4 py-3 font-bold">${plato.precio.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-bold ${
-                        plato.stock < 5 ? 'text-red-600' : 
-                        plato.stock < 10 ? 'text-orange-600' : 
-                        'text-green-600'
-                      }`}>
-                        {plato.stock}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        plato.stock < 5 ? 'bg-red-100 text-red-700' : 
-                        plato.stock < 10 ? 'bg-orange-100 text-orange-700' : 
-                        'bg-green-100 text-green-700'
-                      }`}>
-                        {plato.stock < 5 ? 'CRÍTICO' : plato.stock < 10 ? 'BAJO' : 'NORMAL'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* CONSUMO PERSONAL */}
       {consumoPersonal && consumoPersonal.ordenes.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
@@ -563,37 +660,6 @@ export default function Reportes() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* REPORTE POR FECHA ESPECÍFICA */}
-      {reporteFechaEspecifica && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-lg text-purple-600">📅 Reporte: {reporteFechaEspecifica.fecha}</h2>
-            <button onClick={() => setReporteFechaEspecifica(null)} className="text-gray-400">×</button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-purple-50 p-4 rounded border border-purple-200">
-              <p className="text-purple-600 text-xs font-bold uppercase">Ventas</p>
-              <p className="text-2xl font-bold">${reporteFechaEspecifica.ventas}</p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded border border-blue-200">
-              <p className="text-blue-600 text-xs font-bold uppercase">Dinero en Caja</p>
-              <p className="text-2xl font-bold">${reporteFechaEspecifica.dineroEnCaja}</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded border border-red-200">
-              <p className="text-red-600 text-xs font-bold uppercase">Anulado</p>
-              <p className="text-2xl font-bold">${reporteFechaEspecifica.anulado}</p>
-            </div>
-            <div className="bg-green-50 p-4 rounded border border-green-200">
-              <p className="text-green-600 text-xs font-bold uppercase">Total Órdenes</p>
-              <p className="text-2xl font-bold">
-                {Object.values(reporteFechaEspecifica.conteoPorTipo || {}).reduce((a, b) => a + b, 0)}
-              </p>
-            </div>
-          </div>
         </div>
       )}
 

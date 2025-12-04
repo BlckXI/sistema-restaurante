@@ -441,7 +441,7 @@ export default function Cajero() {
         <button onClick={procesarOrden} disabled={enviando} className={`w-full font-bold py-4 rounded-lg text-lg ${enviando ? 'bg-gray-400' : esPersonal ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white shadow-lg`}>
           {enviando ? '🚀 ENVIANDO...' : (esPersonal ? 'CONFIRMAR CONSUMO PERSONAL' : (esExtra ? 'AGREGAR EXTRA (+)' : 'CONFIRMAR'))}
         </button>
-      </div>
+      </div> 
     </div>
   );
 }
