@@ -8,31 +8,49 @@ const io = socket(URL_BACKEND);
 export default function Cocina() {
 const [ordenes, setOrdenes] = useState([]);
 
+// --- FUNCIÓN PARA ORDENAR SEGÚN TUS REGLAS ---
+const ordenarPedidos = (lista) => {
+  return [...lista].sort((a, b) => {
+    // Normalizamos las horas (si es null o vacío lo dejamos como '')
+    const horaA = a.hora_programada ? a.hora_programada : '';
+    const horaB = b.hora_programada ? b.hora_programada : '';
+
+    // CASO 1: AMBOS tienen hora programada -> Gana la hora menor (más temprano)
+    if (horaA && horaB) {
+      return horaA.localeCompare(horaB);
+    }
+
+    // CASO 2: Solo A tiene hora -> A va primero
+    if (horaA && !horaB) return -1;
+
+    // CASO 3: Solo B tiene hora -> B va primero
+    if (!horaA && horaB) return 1;
+
+    // CASO 4: Ninguno tiene hora -> Orden normal por número de ticket (llegada)
+    return (a.numero_diario || a.id) - (b.numero_diario || b.id);
+  });
+};
+
 useEffect(() => {
   cargarOrdenesPendientes();
-  io.on('nueva_orden', (nuevaOrden) => {
-    //console.log('📦 NUEVA ORDEN RECIBIDA EN COCINA:', nuevaOrden);
-    //console.log('📝 COMENTARIOS EN ORDEN:', nuevaOrden.comentarios);
-    setOrdenes(prev => [...prev, nuevaOrden]);
+  
+  // Escuchamos nuevas órdenes
+  const manejarNuevaOrden = (nuevaOrden) => {
+    // Agregamos la nueva y RE-ORDENAMOS todo al instante
+    setOrdenes(prev => ordenarPedidos([...prev, nuevaOrden]));
     playNotificationSound();
-  });
-  return () => io.off('nueva_orden');
+  };
+
+  io.on('nueva_orden', manejarNuevaOrden);
+  return () => io.off('nueva_orden', manejarNuevaOrden);
 }, []);
 
 const cargarOrdenesPendientes = async () => {
   try {
     const { data } = await axios.get(`${URL_BACKEND}/ordenes/pendientes`);
     console.log('🔄 ORDENES CARGADAS DESDE BD:', data);
-    // Debug: mostrar comentarios de cada orden
-    //data.forEach((orden, index) => {
-      //console.log(`📋 Orden ${index + 1}:`, {
-        //id: orden.id,
-        //cliente: orden.cliente,
-        //comentarios: orden.comentarios,
-        //tieneComentarios: !!orden.comentarios
-      //});
-    //});
-    setOrdenes(data);
+    // Ordenamos también la carga inicial
+    setOrdenes(ordenarPedidos(data));
   } catch (e) { 
     console.log("❌ Error cargando órdenes:", e);
   }
@@ -73,8 +91,6 @@ return (
       )}
 
       {ordenes.map((orden) => {
-        console.log('🎯 RENDERIZANDO ORDEN:', orden.id, 'COMENTARIOS:', orden.comentarios);
-        
         return (
           <div 
             key={orden.id} 
@@ -132,19 +148,19 @@ return (
             )}
 
             {/* COMENTARIOS ESPECIALES (Si existen) */}
-{orden.comentarios && orden.comentarios !== null && orden.comentarios.trim() !== '' ? (
-  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
-      <div className="flex items-center gap-1 mb-1">
-          <span className="text-yellow-600">💡</span>
-          <span className="font-bold text-yellow-800 text-xs">INSTRUCCIONES:</span>
-      </div>
-      <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
-  </div>
-) : (
-  <div className="bg-gray-100 p-2 rounded text-xs mb-3 text-gray-500">
-    No hay instrucciones especiales
-  </div>
-)}
+            {orden.comentarios && orden.comentarios !== null && orden.comentarios.trim() !== '' ? (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
+                  <div className="flex items-center gap-1 mb-1">
+                      <span className="text-yellow-600">💡</span>
+                      <span className="font-bold text-yellow-800 text-xs">INSTRUCCIONES:</span>
+                  </div>
+                  <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
+              </div>
+            ) : (
+              <div className="bg-gray-100 p-2 rounded text-xs mb-3 text-gray-500">
+                No hay instrucciones especiales
+              </div>
+            )}
 
             <ul className="space-y-1 mb-4">
               {orden.detalles.map((item, index) => (
