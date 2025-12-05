@@ -31,7 +31,7 @@ const cargarReporte = async () => {
         console.log("Datos recibidos:", res.data); 
         setDatos(res.data);
     } catch (error) {
-        console.error("Error cargando reporte:", error); // Ver error en consola
+        console.error("Error cargando reporte:", error);
         mostrarNotificacion("Error de conexión o datos corruptos", "error");
     } finally {
         setCargando(false);
@@ -46,7 +46,6 @@ const mostrarNotificacion = (mensaje, tipo) => {
 // --- FUNCIONES AUXILIARES SEGURAS ---
 const calcularResumenPorTipo = (ordenes) => {
     const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 };
-    // CORRECCIÓN SEGURIDAD: el ?. evita error si ordenes es null
     ordenes?.forEach(orden => {
         if (orden.estado !== 'anulado' && orden.tipo_entrega) {
             resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1;
@@ -100,6 +99,11 @@ const calcularEfectivoPorTipo = (ordenes) => {
             const fechaHoy = new Date().toLocaleDateString('es-ES', {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
+
+            // --- CALCULAR TRANSFERENCIAS PARA PDF ---
+            const transferencias = listaOrdenesSegura.filter(o => o.metodo_pago === 'transferencia' && o.estado !== 'anulado');
+            const totalTransferencias = transferencias.reduce((sum, o) => sum + o.total, 0);
+            const cantidadTransferencias = transferencias.length;
 
             // --- ENCABEZADO ---
             doc.setFontSize(22);
@@ -159,14 +163,14 @@ const calcularEfectivoPorTipo = (ordenes) => {
                         cant++;
                         const detalles = o.detalles || [];
                         const subtotalOrden = detalles.reduce((sum, item) => sum + ((item.precio || 0) * (item.cantidad || 1)), 0);
-                        const totalOrden = parseFloat(o.total || 0); // Esto vendrá como 0 si es personal
+                        const totalOrden = parseFloat(o.total || 0);
                         
                         let envioOrden = totalOrden - subtotalOrden;
                         if (envioOrden < 0) envioOrden = 0;
 
-                        totalComida += subtotalOrden; // Valor de la comida (aunque no se cobre)
+                        totalComida += subtotalOrden;
                         totalEnvio += envioOrden;
-                        totalGeneral += totalOrden; // Dinero real (0 si es personal)
+                        totalGeneral += totalOrden;
                     }
                 });
                 return { cant, totalComida, totalEnvio, totalGeneral };
@@ -177,30 +181,44 @@ const calcularEfectivoPorTipo = (ordenes) => {
             const mes = calcularDesglose('mesa');
             const per = calcularDesglose('personal');
 
+            const totalCantidad = dom.cant + ret.cant + mes.cant + per.cant;
+            const sumaTotalComida = dom.totalComida + ret.totalGeneral + mes.totalGeneral; 
+            const sumaTotalEnvio = dom.totalEnvio;
+            const sumaSubtotal = dom.totalGeneral + ret.totalGeneral + mes.totalGeneral;
+
             autoTable(doc, {
                 startY: yPos,
-                head: [['Tipo', 'Cant.', 'Desglose Monetario']],
+                head: [['Tipo', 'Cantidad', 'Total Comida', 'Total Envío', 'Subtotal']],
                 body: [
-                    ['Domicilio', dom.cant, `$${dom.totalComida.toFixed(2)} + $${dom.totalEnvio.toFixed(2)} (Env) = $${dom.totalGeneral.toFixed(2)}`],
-                    ['Retiro', ret.cant, `$${ret.totalGeneral.toFixed(2)}`],
-                    ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`],
+                    ['Domicilio', dom.cant, `$${dom.totalComida.toFixed(2)}`, `$${dom.totalEnvio.toFixed(2)}`, `$${dom.totalGeneral.toFixed(2)}`],
+                    ['Retiro', ret.cant, `$${ret.totalGeneral.toFixed(2)}`, `$0.00`, `$${ret.totalGeneral.toFixed(2)}`],
+                    ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`, `$0.00`, `$${mes.totalGeneral.toFixed(2)}`],
+                    ['Personal', per.cant, `$0.00`, `$0.00`, `$0.00`], 
                     
-                    // --- CAMBIO VISUAL EN EL PDF ---
-                    // totalGeneral será $0.00 (dinero real)
-                    // totalComida será el valor de los platos (referencia)
-                    ['Personal', per.cant, `$${per.totalGeneral.toFixed(2)} (Valor: $${per.totalComida.toFixed(2)})`], 
-                    // -------------------------------
+                    // --- FILA DE TRANSFERENCIAS ---
+                    [
+                        { content: 'Transferencias (Incluido)', styles: { textColor: [100, 100, 100], fontStyle: 'italic' } },
+                        { content: cantidadTransferencias, styles: { halign: 'center', textColor: [100, 100, 100], fontStyle: 'italic' } },
+                        '-', '-',
+                        { content: `$${totalTransferencias.toFixed(2)}`, styles: { halign: 'right', textColor: [100, 100, 100], fontStyle: 'italic' } }
+                    ],
 
                     [
                         { content: 'TOTAL VENTAS', styles: { fontStyle: 'bold' } }, 
-                        { content: datos.cantidadOrdenes || 0, styles: { fontStyle: 'bold' } }, 
-                        { content: `$${ingresoVentas.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }
+                        { content: totalCantidad, styles: { fontStyle: 'bold', halign: 'center' } }, 
+                        { content: `$${sumaTotalComida.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                        { content: `$${sumaTotalEnvio.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                        { content: `$${sumaSubtotal.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }
                     ]
                 ],
                 theme: 'striped',
                 headStyles: { fillColor: [142, 68, 173], textColor: 255 },
                 styles: { fontSize: 9, cellPadding: 3 },
-                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 30 }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right' } }
+                columnStyles: { 
+                    0: { fontStyle: 'bold', cellWidth: 35 }, 
+                    1: { halign: 'center', cellWidth: 20 }, 
+                    4: { halign: 'right', fontStyle: 'bold' } 
+                }
             });
 
             // --- 3. GASTOS ---
@@ -243,13 +261,15 @@ const calcularEfectivoPorTipo = (ordenes) => {
             }
 
             // --- 5. INVENTARIO ---
-            if (inventario.length > 0) {
+            const inventarioConStock = inventario.filter(p => (p.stock || 0) > 0);
+
+            if (inventarioConStock.length > 0) {
                 if (yPos > 220) { doc.addPage(); yPos = 20; }
                 doc.setFontSize(14);
                 doc.setTextColor(230, 126, 34);
                 doc.text("5. INVENTARIO RESTANTE", 14, yPos);
                 yPos += 5;
-                const inventarioOrdenado = [...inventario].sort((a, b) => (a.stock || 0) - (b.stock || 0));
+                const inventarioOrdenado = [...inventarioConStock].sort((a, b) => (a.stock || 0) - (b.stock || 0));
                 const cuerpoInventario = inventarioOrdenado.map(p => {
                     const stock = p.stock || 0;
                     return [p.nombre, stock, stock <= 5 ? 'BAJO' : 'OK'];
@@ -301,18 +321,40 @@ const eliminarGasto = async (id) => { try { await axios.delete(`${URL_BACKEND}/g
 const eliminarIngreso = (id) => setModalEliminarIngreso(id);
 const confirmarEliminarIngreso = async () => { try { await axios.delete(`${URL_BACKEND}/ingresos-extras/${modalEliminarIngreso}`); cargarReporte(); setModalEliminarIngreso(null); } catch (e) {} };
 const anularOrden = (id) => setModalAnular(id);
-const ejecutarAnulacion = async () => { try { await axios.put(`${URL_BACKEND}/ordenes/${modalAnular}/anular`); cargarReporte(); setModalAnular(null); } catch (e) {} };
-const ejecutarCierre = async () => { try { await axios.post(`${URL_BACKEND}/reportes/cierre`, { monto: datos.dineroEnCaja }); setModalCierre(false); window.location.reload(); } catch (e) {} };
+
+const ejecutarAnulacion = async () => { 
+    try { 
+        await axios.patch(`${URL_BACKEND}/ordenes/${modalAnular}/anular`); 
+        cargarReporte(); 
+        setModalAnular(null); 
+    } catch (e) { 
+        console.error("Error anulando:", e);
+        mostrarNotificacion("Error al anular orden", "error");
+    } 
+};
+
+const ejecutarCierre = async () => { 
+    try { 
+        await axios.post(`${URL_BACKEND}/cierre`, { monto: datos.dineroEnCaja });
+        setModalCierre(false);
+        mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito");
+        setTimeout(() => {
+            window.location.reload(); 
+        }, 2000); 
+        
+    } catch (e) { 
+        console.error("Error cerrando:", e);
+        mostrarNotificacion("Error al cerrar caja", "error");
+    } 
+};
 
 
 // --- RENDERIZADO CONDICIONAL ---
 if (cargando) return <div className="p-10 text-center">Cargando Reportes...</div>;
 
-// Si datos es null después de cargar, mostramos error
 if (!datos) return <div className="p-10 text-center text-red-500">Error: No se recibieron datos del servidor.</div>;
 
-// PREPARACIÓN DE DATOS (Con seguridad)
-// Usamos || [] para asegurar que sean arrays aunque vengan null
+// PREPARACIÓN DE DATOS
 const listaOrdenesSegura = datos.listaOrdenes || [];
 const listaGastosSegura = datos.listaGastos || [];
 const listaIngresosSegura = datos.listaIngresosExtras || [];
@@ -320,7 +362,10 @@ const rankingPlatosSeguro = datos.rankingPlatos || [];
 
 const resumenTipo = calcularResumenPorTipo(listaOrdenesSegura);
 const efectivoPorTipo = calcularEfectivoPorTipo(listaOrdenesSegura);
-const ingresoVentasNum = parseFloat(datos.ingresoVentas || 0);
+
+// CALCULAR TRANSFERENCIAS PARA UI
+const transferencias = listaOrdenesSegura.filter(o => o.metodo_pago === 'transferencia' && o.estado !== 'anulado');
+const totalTransferenciasUI = transferencias.reduce((sum, o) => sum + o.total, 0);
 
 const tipoConfig = {
     domicilio: { emoji: '🛵', label: 'Domicilio' },
@@ -331,7 +376,7 @@ const tipoConfig = {
 
 return (
     <div className="p-4 md:p-8 bg-gray-100 min-h-screen">
-        {/* MODALES (Mismo código, simplificado aquí por legibilidad) */}
+        {/* MODALES */}
         {modalEliminarIngreso && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <div className="bg-white p-6 rounded shadow-lg">
@@ -384,7 +429,7 @@ return (
             </div>
         </div>
 
-        {/* TARJETAS DE RESUMEN */}
+        {/* TARJETAS DE RESUMEN (AGREGADA TARJETA DE TRANSFERENCIA) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
             <div className="bg-gray-50 p-4 rounded-lg border">
                 <p className="text-xs font-bold uppercase text-gray-500">Saldo Ayer</p>
@@ -402,14 +447,18 @@ return (
                 <p className="text-xs font-bold uppercase text-red-600">- Gastos</p>
                 <p className="text-xl font-bold text-red-700">${datos.totalGastos || "0.00"}</p>
             </div>
+            
+            {/* NUEVA TARJETA VISUAL DE TRANSFERENCIAS */}
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                <p className="text-xs font-bold uppercase text-indigo-600">🏦 Transferencias</p>
+                <p className="text-xl font-bold text-indigo-700">${totalTransferenciasUI.toFixed(2)}</p>
+                <p className="text-[10px] text-indigo-400">{transferencias.length} movs.</p>
+            </div>
+
             <div className="bg-blue-600 p-4 rounded-lg shadow-lg text-white">
                 <p className="text-xs font-bold uppercase text-blue-100">Total Caja</p>
                 <p className="text-3xl font-bold">${datos.dineroEnCaja || "0.00"}</p>
                 <button onClick={() => setModalCierre(true)} className="mt-2 bg-white text-blue-700 text-xs font-bold py-1 px-3 rounded w-full">🔒 CERRAR</button>
-            </div>
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                <p className="text-xs font-bold uppercase text-purple-600">Órdenes Hoy</p>
-                <p className="text-xl font-bold text-purple-700">{datos.cantidadOrdenes || 0}</p>
             </div>
         </div>
 
@@ -417,7 +466,6 @@ return (
         <div className="bg-white rounded-lg shadow-sm border p-5 mb-6">
             <h2 className="font-bold text-lg mb-4 text-gray-700">📊 Distribución</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Cantidades */}
                 <div>
                     <h3 className="font-bold text-gray-600 mb-3 text-sm uppercase">Cantidad</h3>
                     <div className="space-y-3">
@@ -434,7 +482,6 @@ return (
                         ))}
                     </div>
                 </div>
-                {/* Efectivo */}
                 <div>
                     <h3 className="font-bold text-gray-600 mb-3 text-sm uppercase">Dinero</h3>
                     <div className="space-y-3">
@@ -446,7 +493,6 @@ return (
                                 </div>
                                 <div className="text-right">
                                     <p className="text-2xl font-bold text-green-600">
-                                        {/* CORRECCIÓN SEGURIDAD: Evitar error en toFixed */}
                                         ${(efectivoPorTipo[tipo] || 0).toFixed(2)}
                                     </p>
                                 </div>
@@ -457,129 +503,13 @@ return (
             </div>
         </div>
 
-        {/* SECCIÓN DE LISTAS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            
-            {/* GASTOS - CORRECCIÓN SEGURIDAD: Usamos listaGastosSegura */}
-            <div className="bg-white rounded-lg shadow-sm border p-5">
-                <h2 className="font-bold text-lg mb-4 text-red-600">💸 Gastos</h2>
-                <form onSubmit={registrarGasto} className="flex gap-2 mb-4">
-                    <input type="text" placeholder="Desc." className="flex-1 p-2 border rounded text-sm" value={descGasto} onChange={e => setDescGasto(e.target.value)} />
-                    <input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoGasto} onChange={e => setMontoGasto(e.target.value)} />
-                    <button type="submit" className="bg-red-500 text-white px-3 rounded font-bold">+</button>
-                </form>
-                <div className="overflow-y-auto max-h-40">
-                    <table className="w-full text-sm">
-                        <tbody className="divide-y">
-                            {listaGastosSegura.length > 0 ? (
-                                listaGastosSegura.map(g => (
-                                    <tr key={g.id}>
-                                        <td className="py-2">{g.descripcion}</td>
-                                        <td className="py-2 text-right font-bold text-red-600">-${(g.monto || 0).toFixed(2)}</td>
-                                        <td className="py-2 text-right"><button onClick={() => eliminarGasto(g.id)} className="text-gray-300 hover:text-red-500">×</button></td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin gastos</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* INGRESOS EXTRAS - CORRECCIÓN SEGURIDAD: Usamos listaIngresosSegura */}
-            <div className="bg-white rounded-lg shadow-sm border p-5">
-                <h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2>
-                <form onSubmit={registrarIngreso} className="flex gap-2 mb-4">
-                    <input type="text" placeholder="Desc." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} />
-                    <input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoIngreso} onChange={e => setMontoIngreso(e.target.value)} />
-                    <button type="submit" className="bg-teal-500 text-white px-3 rounded font-bold">+</button>
-                </form>
-                <div className="overflow-y-auto max-h-40">
-                    <table className="w-full text-sm">
-                        <tbody className="divide-y">
-                            {listaIngresosSegura.length > 0 ? (
-                                listaIngresosSegura.map(i => (
-                                    <tr key={i.id}>
-                                        <td className="py-2">{i.descripcion}</td>
-                                        <td className="py-2 text-right font-bold text-teal-600">+${(i.monto || 0).toFixed(2)}</td>
-                                        <td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin ingresos extras</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* RANKING - CORRECCIÓN SEGURIDAD: Usamos rankingPlatosSeguro */}
-            <div className="bg-white rounded-lg shadow-sm border p-5">
-                <h2 className="font-bold text-lg text-gray-700 mb-4">🏆 Top Ventas</h2>
-                <div className="overflow-y-auto max-h-40">
-                    <table className="w-full text-sm">
-                        <tbody className="divide-y">
-                            {rankingPlatosSeguro.length > 0 ? (
-                                rankingPlatosSeguro.map((p, i) => (
-                                    <tr key={i}>
-                                        <td className="py-2"><span className="text-xs text-gray-400 mr-2">#{i + 1}</span>{p.nombre}</td>
-                                        <td className="py-2 text-right font-bold text-blue-600">{p.cantidad}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan="2" className="text-center text-gray-400 py-2">Sin ventas aún</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-red-600">💸 Gastos</h2><form onSubmit={registrarGasto} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Hielo..." className="flex-1 p-2 border rounded text-sm" value={descGasto} onChange={e => setDescGasto(e.target.value)} /><input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoGasto} onChange={e => setMontoGasto(e.target.value)} /><button type="submit" className="bg-red-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaGastosSegura.length > 0 ? (listaGastosSegura.map(g => (<tr key={g.id}><td className="py-2">{g.descripcion}</td><td className="py-2 text-right font-bold text-red-600">-${(g.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarGasto(g.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin gastos</td></tr>)}</tbody></table></div></div>
+            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2><form onSubmit={registrarIngreso} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Inyección de capital..." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} /><input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoIngreso} onChange={e => setMontoIngreso(e.target.value)} /><button type="submit" className="bg-teal-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaIngresosSegura.length > 0 ? (listaIngresosSegura.map(i => (<tr key={i.id}><td className="py-2">{i.descripcion}</td><td className="py-2 text-right font-bold text-teal-600">+${(i.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin ingresos extras</td></tr>)}</tbody></table></div></div>
+            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg text-gray-700 mb-4">🏆 Top Ventas</h2><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{rankingPlatosSeguro.length > 0 ? (rankingPlatosSeguro.map((p, i) => (<tr key={i}><td className="py-2"><span className="text-xs text-gray-400 mr-2">#{i + 1}</span>{p.nombre}</td><td className="py-2 text-right font-bold text-blue-600">{p.cantidad}</td></tr>))) : (<tr><td colSpan="2" className="text-center text-gray-400 py-2">Sin ventas aún</td></tr>)}</tbody></table></div></div>
         </div>
 
-        {/* HISTORIAL - CORRECCIÓN SEGURIDAD: Usamos listaOrdenesSegura */}
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mb-10">
-            <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-                <h3 className="font-bold text-lg text-gray-700">📜 Historial</h3>
-                <div className="flex gap-2">
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado || "0.00"}</span>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Cant: {listaOrdenesSegura.length}</span>
-                </div>
-            </div>
-            <div className="overflow-x-auto max-h-96">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0">
-                        <tr>
-                            <th className="px-4 py-3">#</th>
-                            <th className="px-4 py-3">Cliente</th>
-                            <th className="px-4 py-3">Tipo</th>
-                            <th className="px-4 py-3">Estado</th>
-                            <th className="px-4 py-3">Total</th>
-                            <th className="px-4 py-3 text-right">Opción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {listaOrdenesSegura.length > 0 ? (
-                            listaOrdenesSegura.map((orden) => (
-                                <tr key={orden.id} className={`transition-colors ${orden.estado === 'anulado' ? 'bg-red-50 opacity-60' : 'hover:bg-gray-50'}`}>
-                                    <td className="px-4 py-3 font-bold">#{orden.numero_diario || orden.id}</td>
-                                    <td className="px-4 py-3">{orden.cliente}</td>
-                                    <td className="px-4 py-3">{orden.tipo_entrega}</td>
-                                    <td className="px-4 py-3">{orden.estado}</td>
-                                    <td className="px-4 py-3 font-bold">${(orden.total || 0).toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        {orden.estado !== 'anulado' && (
-                                            <button onClick={() => anularOrden(orden.id)} className="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded">🚫</button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr><td colSpan="6" className="text-center p-4">No hay órdenes registradas hoy.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mb-10"><div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center"><h3 className="font-bold text-lg text-gray-700">📜 Historial</h3><div className="flex gap-2"><span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado || "0.00"}</span><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Cant: {listaOrdenesSegura.length}</span></div></div><div className="overflow-x-auto max-h-96"><table className="w-full text-left text-sm"><thead className="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Total</th><th className="px-4 py-3 text-right">Opción</th></tr></thead><tbody className="divide-y divide-gray-200">{listaOrdenesSegura.length > 0 ? (listaOrdenesSegura.map((orden) => (<tr key={orden.id} className={`transition-colors ${orden.estado === 'anulado' ? 'bg-red-50 opacity-60' : 'hover:bg-gray-50'}`}><td className="px-4 py-3 font-bold">#{orden.numero_diario || orden.id}</td><td className="px-4 py-3">{orden.cliente}</td><td className="px-4 py-3">{orden.tipo_entrega}</td><td className="px-4 py-3">{orden.estado}</td><td className="px-4 py-3 font-bold">${(orden.total || 0).toFixed(2)}</td><td className="px-4 py-3 text-right">{orden.estado !== 'anulado' && (<button onClick={() => anularOrden(orden.id)} className="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded">🚫</button>)}</td></tr>))) : (<tr><td colSpan="6" className="text-center p-4">No hay órdenes registradas hoy.</td></tr>)}</tbody></table></div></div>
     </div>
 );
 }

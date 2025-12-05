@@ -27,6 +27,9 @@ export default function Cajero() {
   const [esDomicilio, setEsDomicilio] = useState(false);
   const [esRetiro, setEsRetiro] = useState(false);
   const [esPersonal, setEsPersonal] = useState(false);
+  
+  // NUEVO: ESTADO PARA TRANSFERENCIA
+  const [esTransferencia, setEsTransferencia] = useState(false);
 
   const [direccion, setDireccion] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -177,7 +180,6 @@ export default function Cajero() {
     }
   };
 
-  // CORREGIDO: toggleDomicilio
   const toggleDomicilio = () => {
       setEsDomicilio(!esDomicilio);
       if(!esDomicilio) {
@@ -199,6 +201,8 @@ export default function Cajero() {
       if(!esPersonal) {
           setEsDomicilio(false);
           setEsRetiro(false);
+          // Si es personal, no puede ser transferencia (es gratis)
+          setEsTransferencia(false);
       }
   };
 
@@ -230,23 +234,26 @@ export default function Cajero() {
     if (esRetiro) tipoFinal = 'retiro';
     if (esPersonal) tipoFinal = 'personal';
 
-    // --- CORRECCIÓN CLAVE: SI ES PERSONAL, EL TOTAL A GUARDAR ES 0 ---
+    // SI ES PERSONAL, EL TOTAL ES 0
     const totalFinalParaGuardar = esPersonal ? 0 : (subtotal + costoEnvio);
 
     const orden = {
       cliente: nombreFinal,
-      total: totalFinalParaGuardar, // Aquí forzamos el 0 si es personal
+      total: totalFinalParaGuardar,
       detalles: carrito,
       tipo_entrega: tipoFinal,
       direccion: esDomicilio ? direccion : '', 
       telefono,
       hora_programada: horaProgramada,
-      comentarios: comentarios
+      comentarios: comentarios,
+      // ENVIAMOS EL MÉTODO DE PAGO
+      metodo_pago: esTransferencia ? 'transferencia' : 'efectivo'
     };
 
     try {
       await axios.post(`${URL_BACKEND}/ordenes`, orden);
       mostrarNotificacion('¡Orden enviada a cocina! 👨‍🍳', 'exito');
+      // RESETEO COMPLETO
       setCarrito([]); 
       setCliente(''); 
       setHoraProgramada(''); 
@@ -257,6 +264,7 @@ export default function Cajero() {
       setEsRetiro(false);
       setEsPersonal(false);
       setEsExtra(false); 
+      setEsTransferencia(false);
       setErrores({});
       cargarDatos(); 
       cargarClientesActivos();
@@ -369,7 +377,7 @@ export default function Cajero() {
             <div className="flex-1"><label className="block text-xs font-bold text-blue-800">Hora (Opcional)</label><input type="time" className="w-full p-1 border rounded text-sm" value={horaProgramada} onChange={e => setHoraProgramada(e.target.value)}/></div>
         </div>
 
-        {/* OPCIONES ENTREGA - VERSIÓN CORREGIDA */}
+        {/* OPCIONES ENTREGA */}
         <div className="space-y-2 mb-4">
             {/* RETIRO */}
             <div className={`p-3 rounded border cursor-pointer transition-colors flex items-center gap-2 ${esRetiro ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`} onClick={toggleRetiro}>
@@ -398,24 +406,8 @@ export default function Cajero() {
             </div>
         </div>
 
-        {/* COMENTARIOS */}
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-green-600 text-lg">📝</span>
-            <label className="text-green-800 font-bold text-sm">Instrucciones Especiales (Opcional)</label>
-          </div>
-          <textarea 
-            placeholder="Ej: Ensalada sin cebolla, Refresco poco hielo, etc..."
-            className="w-full p-2 border border-green-300 rounded text-sm resize-none"
-            rows="3"
-            value={comentarios}
-            onChange={(e) => setComentarios(e.target.value)}
-          />
-          <p className="text-xs text-green-600 mt-1">Estas instrucciones se enviarán a cocina</p>
-        </div>
-
         {/* CARRITO */}
-        <div className="mb-4" style={{height: '300px'}}>
+        <div className="mb-4" style={{height: '250px'}}>
           <div className={`bg-white rounded border p-2 h-full overflow-y-auto ${errores.carrito ? 'border-red-300' : ''}`}>
             {carrito.length === 0 ? 
               <div className="h-full flex items-center justify-center text-gray-400 flex-col opacity-60">
@@ -433,6 +425,19 @@ export default function Cajero() {
               ))}
           </div>
         </div>
+
+        {/* PAGO CON TRANSFERENCIA - NUEVA CASILLA */}
+        {!esPersonal && (
+            <div 
+                className={`flex items-center gap-2 mb-4 p-3 rounded border cursor-pointer transition-colors ${esTransferencia ? 'bg-indigo-100 border-indigo-400' : 'bg-white border-gray-200 hover:bg-gray-50'}`} 
+                onClick={() => setEsTransferencia(!esTransferencia)}
+            >
+                <input type="checkbox" checked={esTransferencia} readOnly className="w-5 h-5 accent-indigo-600 cursor-pointer" />
+                <span className={`font-bold ${esTransferencia ? 'text-indigo-800' : 'text-gray-600'}`}>
+                    🏦 Pago con Transferencia
+                </span>
+            </div>
+        )}
 
         <div className="space-y-1 text-right mb-4 pt-2 border-t">
           {!esPersonal && <p className="text-gray-500 text-sm">Subtotal: ${subtotal.toFixed(2)}</p>}
