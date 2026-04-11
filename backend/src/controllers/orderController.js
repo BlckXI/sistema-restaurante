@@ -2,17 +2,15 @@ const supabase = require('../config/supabase');
 const { getRangoDiario } = require('../utils/dateUtils');
 
 // COLA DE PROCESAMIENTO (MUTEX)
-// Obliga al servidor a procesar las órdenes una por una en estricto orden de llegada.
 let colaDeOrdenes = Promise.resolve();
 
 const crearOrden = (req, res) => {
-    // Enganchamos esta nueva solicitud a la cola
     colaDeOrdenes = colaDeOrdenes.then(async () => {
-        console.log('SOLICITUD POST /ordenes RECIBIDA (Procesando en Cola)');
+        console.log('📨 SOLICITUD POST /ordenes RECIBIDA (Procesando en Cola)');
         const { cliente, total, detalles, tipo_entrega, direccion, telefono, hora_programada, comentarios, metodo_pago } = req.body;
 
         try {
-            // 1. Validar stock (Nadie más puede comprar mientras esto se ejecuta)
+            // 1. Validar stock
             for (const item of detalles) {
                 const { data: plato } = await supabase.from('platos').select('stock, nombre, id_padre').eq('id', item.id).single();
                 let stockReal = plato.stock;
@@ -21,7 +19,6 @@ const crearOrden = (req, res) => {
                     stockReal = padre ? padre.stock : 0;
                 }
                 if (stockReal < item.cantidad) {
-                    // Si la Caja 1 ya compró las sopas, la Caja 2 recibirá este error
                     return res.status(400).json({ error: `Stock insuficiente de ${plato?.nombre}. Alguien más lo acaba de comprar.` });
                 }
             }
@@ -54,7 +51,7 @@ const crearOrden = (req, res) => {
             
             // 3. Avisar a todas las pantallas
             req.io.emit('nueva_orden', ordenData[0]); 
-            req.io.emit('menu_actualizado'); // ESTO ACTUALIZA EL STOCK EN LAS OTRAS CAJAS AL INSTANTE
+            req.io.emit('menu_actualizado'); 
 
             return res.status(201).json({ message: 'Creada', orden: ordenData[0] });
         } catch (error) {
@@ -66,3 +63,61 @@ const crearOrden = (req, res) => {
         if (!res.headersSent) res.status(500).json({ error: "Error fatal en cola de procesamiento" });
     });
 };
+
+const completarOrden = async (req, res) => {
+    const { id } = req.params;
+    const { data, error } = await supabase.from('ordenes').update({ estado: 'listo' }).eq('id', id).select('id, tipo_entrega, cliente').single();
+    if (error) return res.status(500).json({ error: error.message });
+    if (data.tipo_entrega === 'domicilio') req.io.emit('orden_lista', data); 
+    res.json({ message: 'OK' });
+};
+
+const anularOrden = async (req, res) => {
+    const id = req.params.id;
+    try {
+        const { data: orden, error: fetchError } = await supabase.from('ordenes').select('*').eq('id', id).single();
+        if (fetchError || !orden || orden.estado === 'anulado') {
+            return res.status(400).json({ error: "Orden no encontrada o ya anulada" });
+        }
+
+        const detalles = orden.detalles || [];
+        
+        for (const item of detalles) {
+            if (item.id) {
+                const { data: p } = await supabase.from('platos').select('id, id_padre').eq('id', item.id).single();
+                if (p) {
+                    const idTarget = p.id_padre || p.id;
+                    const { data: obj } = await supabase.from('platos').select('stock').eq('id', idTarget).single();
+                    if(obj) {
+                        await supabase.from('platos').update({ stock: obj.stock + item.cantidad }).eq('id', idTarget);
+                    }
+                }
+            }
+        }
+        
+        const { error: updateError } = await supabase.from('ordenes').update({ estado: 'anulado' }).eq('id', id);
+        if (updateError) throw updateError;
+
+        req.io.emit('orden_anulada', orden);
+        req.io.emit('menu_actualizado');
+
+        res.json({ message: "Anulada exitosamente" });
+    } catch (error) { 
+        console.error("ERROR AL ANULAR ORDEN:", error);
+        res.status(500).json({ error: error.message || "Error interno" }); 
+    }
+};
+
+const entregarOrden = async (req, res) => {
+    const { error } = await supabase.from('ordenes').update({ estado: 'entregado' }).eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: 'OK' });
+};
+
+const obtenerPendientes = async (req, res) => {
+    const { data, error } = await supabase.from('ordenes').select('*').eq('estado', 'pendiente').order('numero_diario', { ascending: true }).order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+};
+
+module.exports = { crearOrden, completarOrden, anularOrden, entregarOrden, obtenerPendientes };
