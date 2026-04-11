@@ -1,14 +1,56 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { orderService } from './api/orderService';
 import { socketClient } from './api/socketService';
 
 export default function Cocina() {
   const [ordenes, setOrdenes] = useState([]);
+  const audioRef = useRef(new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'));
 
-  // ORDEN DE LLEGADA ESTRICTO: Ignora la hora programada para organizar.
+  // 1. Función ROBUSTA para convertir "1:30 PM" a minutos
+  const convertirHoraAMinutos = (horaString) => {
+    // Si no hay hora o no es un texto, lo ignoramos
+    if (!horaString || typeof horaString !== 'string') return null;
+    
+    // ASPIRADORA: Quitamos espacios al inicio/final y dobles espacios
+    const limpio = horaString.trim().replace(/\s+/g, ' ');
+    const partes = limpio.split(' ');
+    
+    if (partes.length < 2) return null; 
+    
+    // Extraemos hora y minuto de forma segura
+    const [horaStr, minutoStr] = partes[0].split(':');
+    const hora = parseInt(horaStr, 10);
+    const minuto = parseInt(minutoStr, 10);
+    const ampm = partes[1].toUpperCase();
+    
+    // Si la matemática falló por algún símbolo raro, devolvemos null
+    if (isNaN(hora) || isNaN(minuto)) return null;
+
+    let hora24 = hora;
+    if (ampm === 'PM' && hora !== 12) hora24 += 12;
+    if (ampm === 'AM' && hora === 12) hora24 = 0;
+    
+    return (hora24 * 60) + minuto;
+  };
+
+  // 2. Lógica para ordenar las tarjetas
   const ordenarPedidos = (lista) => {
     if (!Array.isArray(lista)) return []; 
+
     return [...lista].sort((a, b) => {
+      const minA = convertirHoraAMinutos(a.hora_programada);
+      const minB = convertirHoraAMinutos(b.hora_programada);
+
+      // Si AMBAS tienen hora programada, ordenar de la más temprana a la más tarde
+      if (minA !== null && minB !== null) {
+          if (minA !== minB) return minA - minB; // Cronológico
+      }
+
+      // Si solo una tiene hora programada, darle prioridad (ponerla al inicio)
+      if (minA !== null && minB === null) return -1;
+      if (minA === null && minB !== null) return 1;
+
+      // Si tienen la misma hora (o si ninguna de las dos tiene hora), ordenamos por número de ticket
       return (a.numero_diario || a.id) - (b.numero_diario || b.id);
     });
   };
@@ -44,8 +86,10 @@ export default function Cocina() {
   };
 
   const playNotificationSound = () => {
-    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-    audio.play().catch(e => console.log("Audio bloqueado - Presiona 'Activar Sonido'"));
+    if (audioRef.current) {
+        audioRef.current.currentTime = 0; 
+        audioRef.current.play().catch(e => console.log("Audio bloqueado - Presiona 'Activar Sonido'"));
+    }
   };
 
   const getCardStyle = (tipo) => {
@@ -62,7 +106,6 @@ export default function Cocina() {
           👨‍🍳 Comandas en Cocina <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{ordenes.length} Pendientes</span>
         </h1>
         
-        {/* BOTÓN PARA DESTRABAR EL AUDIO DEL NAVEGADOR */}
         <button 
           onClick={playNotificationSound} 
           className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-bold flex gap-2 items-center"
@@ -84,7 +127,6 @@ export default function Cocina() {
               key={orden.id} 
               className={`border-l-8 rounded-lg p-4 shadow-md relative animate-fade-in-up ${getCardStyle(orden.tipo_entrega)}`}
             >
-              {/* CABECERA */}
               <div className="flex justify-between items-start mb-2 border-b pb-2 border-gray-200">
                   <div>
                       <span className="font-bold text-3xl block text-gray-800">
@@ -98,7 +140,6 @@ export default function Cocina() {
                       </span>
                   </div>
                   
-                  {/* ETIQUETAS DE TIPO */}
                   {orden.tipo_entrega === 'domicilio' && (
                       <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded flex items-center gap-1 border border-orange-200">
                           🛵 MOTO
@@ -116,7 +157,6 @@ export default function Cocina() {
                   )}
               </div>
 
-              {/* HORA PROGRAMADA (Solo informativa, no afecta el orden) */}
               {orden.hora_programada && (
                   <div className="mb-3 bg-yellow-100 border-l-4 border-yellow-500 p-2 text-yellow-900 rounded-r shadow-sm flex items-center gap-2">
                       <span className="text-xl">⏰</span>
@@ -127,7 +167,6 @@ export default function Cocina() {
                   </div>
               )}
 
-              {/* INFO DOMICILIO */}
               {orden.tipo_entrega === 'domicilio' && (
                   <div className="bg-white bg-opacity-60 p-2 rounded text-xs mb-3 text-gray-700 border border-gray-200">
                       <p className="font-bold">📍 {orden.direccion}</p>
@@ -135,7 +174,6 @@ export default function Cocina() {
                   </div>
               )}
 
-              {/* COMENTARIOS ESPECIALES */}
               {orden.comentarios && orden.comentarios !== null && orden.comentarios.trim() !== '' ? (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded-r text-sm mb-3">
                     <div className="flex items-center gap-1 mb-1">
