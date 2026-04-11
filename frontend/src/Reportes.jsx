@@ -241,7 +241,7 @@ return (
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4 mb-6">
             <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
-            <div className="flex gap-2"><button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded shadow flex items-center gap-2">🖨️ PDF</button><button onClick={cargarReporte} className="bg-white border px-4 py-2 rounded shadow">🔄 Actualizar</button></div>
+            <div className="flex gap-2"><button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded shadow flex items-center gap-2">🖨️ PDF</button></div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">

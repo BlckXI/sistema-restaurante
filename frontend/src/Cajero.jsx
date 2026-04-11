@@ -412,11 +412,11 @@ return (
 
       {/* --- AQUÍ AGREGAMOS EL CAMPO DE COMENTARIOS --- */}
       <div className="mb-3">
-          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">📝 Notas para Cocina (Opcional)</label>
+          <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Notas para Cocina y Repartidor</label>
           <textarea 
               className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-white"
               rows="2"
-              placeholder="Ej: Sin cebolla, salsa aparte, extra picante..."
+              placeholder="Ej: Sin cebolla, referencias..."
               value={comentarios}
               onChange={(e) => setComentarios(e.target.value)}
           />
@@ -443,7 +443,7 @@ return (
       </div>
 
       <button onClick={procesarOrden} disabled={enviando} className={`w-full font-bold py-4 rounded-lg text-lg ${enviando ? 'bg-gray-400' : esPersonal ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white shadow-lg`}>
-        {enviando ? '🚀 ENVIANDO...' : (esPersonal ? 'CONFIRMAR CONSUMO PERSONAL' : (esExtra ? 'AGREGAR EXTRA (+)' : 'CONFIRMAR'))}
+        {enviando ? 'ENVIANDO...' : (esPersonal ? 'CONFIRMAR CONSUMO PERSONAL' : (esExtra ? 'AGREGAR EXTRA (+)' : 'CONFIRMAR'))}
       </button>
     </div> 
   </div>
