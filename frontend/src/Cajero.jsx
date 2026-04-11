@@ -25,7 +25,7 @@ const [esDomicilio, setEsDomicilio] = useState(false);
 const [esRetiro, setEsRetiro] = useState(false);
 const [esPersonal, setEsPersonal] = useState(false);
 
-// NUEVO: ESTADO PARA TRANSFERENCIA
+// ESTADO PARA TRANSFERENCIA
 const [esTransferencia, setEsTransferencia] = useState(false);
 
 const [direccion, setDireccion] = useState('');
@@ -59,6 +59,27 @@ useEffect(() => {
       socketClient.off('menu_actualizado', cargarDatos); // LIMPIA LA ESCUCHA
   };
 }, []);
+
+// --- FUNCIÓN INTELIGENTE DE HORA ---
+  const formatearHoraInteligente = (hora24) => {
+      if (!hora24) return null; // Si no hay hora programada, no hace nada
+      
+      let [horas, minutos] = hora24.split(':');
+      let h = parseInt(horas, 10);
+      
+      // MAGIA: Si el cajero pone entre 1 AM y 6 AM, lo pasamos automáticamente a la tarde (PM)
+      if (h >= 1 && h <= 6) {
+          h += 12;
+      }
+
+      // Determinar si es AM o PM
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      
+      // Convertir a formato 12 horas (El 0 o 12 lo convierte en 12, el 13 en 1, etc)
+      let h12 = h % 12 || 12;
+      
+      return `${h12}:${minutos} ${ampm}`;
+  };
 
 const cargarDatos = async () => {
   try {
@@ -240,7 +261,8 @@ const procesarOrden = async () => {
     hora_programada: horaProgramada,
     comentarios: comentarios,
     // ENVIAMOS EL MÉTODO DE PAGO
-    metodo_pago: esTransferencia ? 'transferencia' : 'efectivo'
+    metodo_pago: esTransferencia ? 'transferencia' : 'efectivo',
+    hora_programada: formatearHoraInteligente(horaProgramada),
   };
 
   try {
@@ -262,7 +284,7 @@ const procesarOrden = async () => {
     cargarDatos(); 
     cargarClientesActivos();
   } catch (error) {
-    console.error('❌ ERROR AL ENVIAR ORDEN:', error);
+    console.error('ERROR AL ENVIAR ORDEN:', error);
     mostrarNotificacion('Error al procesar la orden', 'error');
   } finally {
     setEnviando(false);
