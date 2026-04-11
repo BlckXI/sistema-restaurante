@@ -7,7 +7,7 @@ export default function Cocina() {
 
   // --- FUNCIÓN PARA ORDENAR SEGÚN TUS REGLAS ---
   const ordenarPedidos = (lista) => {
-    // 🛡️ PROTECCIÓN: Si lista es null o undefined, devolvemos un array vacío para que no falle el map()
+    // PROTECCIÓN: Si lista es null o undefined, devolvemos un array vacío para que no falle el map()
     if (!Array.isArray(lista)) return []; 
 
     return [...lista].sort((a, b) => {
@@ -37,10 +37,10 @@ export default function Cocina() {
   const cargarOrdenesPendientes = async () => {
     try {
       const { data } = await orderService.getPendientes();
-      console.log('🔄 ORDENES CARGADAS:', data);
+      console.log('ORDENES CARGADAS:', data);
       setOrdenes(ordenarPedidos(data || [])); 
     } catch (e) { 
-      console.log("❌ Error cargando órdenes:", e);
+      console.log("Error cargando órdenes:", e);
     }
   };
 
@@ -68,9 +68,17 @@ export default function Cocina() {
 
   return (
     <div className="p-4">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-        👨‍🍳 Comandas en Cocina <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{ordenes.length} Pendientes</span>
-      </h1>
+      <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+          👨‍🍳 Comandas en Cocina <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{ordenes.length} Pendientes</span>
+        </h1>
+        
+        {/* BOTÓN PARA DESTRABAR EL AUDIO DEL NAVEGADOR */}
+        <button 
+          onClick={playNotificationSound} 
+          className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-bold flex gap-2 items-center"
+        >
+           🔔 Activar Sonido
+        </button>
       
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {ordenes.length === 0 && (

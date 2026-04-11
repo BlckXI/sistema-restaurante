@@ -25,12 +25,14 @@ useEffect(() => {
       // ESCUCHAR CAMBIOS EN TIEMPO REAL
       socketClient.on('nueva_orden', cargarReporte);
       socketClient.on('orden_anulada', cargarReporte);
-      socketClient.on('orden_lista', cargarReporte); 
+      socketClient.on('orden_lista', cargarReporte);
+      socketClient.on('reporte_actualizado', cargarReporte); 
 
       return () => {
           socketClient.off('nueva_orden', cargarReporte);
           socketClient.off('orden_anulada', cargarReporte);
           socketClient.off('orden_lista', cargarReporte);
+          socketClient.on('reporte_actualizado', cargarReporte);
       };
   }, []);
 

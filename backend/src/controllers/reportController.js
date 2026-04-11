@@ -6,12 +6,14 @@ const agregarGasto = async (req, res) => {
     const { descripcion, monto } = req.body;
     const { error } = await supabase.from('gastos').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
+    req.io.emit('reporte_actualizado'); // AVISO DE WEBSOCKET
     res.json({ message: "OK" });
 };
 
 const eliminarGasto = async (req, res) => {
     const { error } = await supabase.from('gastos').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
+    req.io.emit('reporte_actualizado'); // AVISO DE WEBSOCKET
     res.json({ message: "OK" });
 };
 
@@ -19,12 +21,14 @@ const agregarIngresoExtra = async (req, res) => {
     const { descripcion, monto } = req.body;
     const { error } = await supabase.from('ingresos_extras').insert([{ descripcion, monto }]).select();
     if (error) return res.status(500).json({ error: error.message });
+    req.io.emit('reporte_actualizado'); // AVISO DE WEBSOCKET
     res.json({ message: "OK" });
 };
 
 const eliminarIngresoExtra = async (req, res) => {
     const { error } = await supabase.from('ingresos_extras').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
+    req.io.emit('reporte_actualizado'); // AVISO DE WEBSOCKET
     res.json({ message: "OK" });
 };
 

@@ -175,6 +175,18 @@ export default function Repartidor() {
                         </a>
                     </div>
 
+                    {/* COMENTARIOS PARA EL REPARTIDOR*/}
+
+                    {orden.comentarios && orden.comentarios.trim() !== '' && (
+                        <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r text-sm">
+                            <div className="flex items-center gap-1 mb-1">
+                                <span className="text-yellow-600">💡</span>
+                                <span className="font-bold text-yellow-800 text-xs">NOTAS DEL CLIENTE:</span>
+                            </div>
+                            <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
+                        </div>
+                    )}
+
                     <div className="flex justify-between items-center mb-4 bg-white">
                         <a href={`tel:${orden.telefono}`} className="flex items-center gap-2 text-gray-600 font-bold bg-gray-100 px-3 py-2 rounded hover:bg-gray-200 transition">
                             📞 {orden.telefono || 'Sin número'}
