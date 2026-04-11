@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { reportService } from './api/reportService';
 import { menuService } from './api/menuService';
 import { orderService } from './api/orderService';
+import { socketClient } from './api/socketService';
 
 export default function Reportes() {
 const [datos, setDatos] = useState(null);
@@ -18,7 +19,20 @@ const [modalCierre, setModalCierre] = useState(false);
 const [modalAnular, setModalAnular] = useState(null);
 const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null);
 
-useEffect(() => { cargarReporte(); }, []);
+useEffect(() => { 
+      cargarReporte(); 
+
+      // ESCUCHAR CAMBIOS EN TIEMPO REAL
+      socketClient.on('nueva_orden', cargarReporte);
+      socketClient.on('orden_anulada', cargarReporte);
+      socketClient.on('orden_lista', cargarReporte); 
+
+      return () => {
+          socketClient.off('nueva_orden', cargarReporte);
+          socketClient.off('orden_anulada', cargarReporte);
+          socketClient.off('orden_lista', cargarReporte);
+      };
+  }, []);
 
 const cargarReporte = async () => { 
     try { 
