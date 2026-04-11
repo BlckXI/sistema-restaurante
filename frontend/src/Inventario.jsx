@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; // CAMBIAR A TU URL DE RENDER EN PRODUCCIÓN
+import { menuService } from './api/menuService';
+import { socketClient } from './api/socketService';
 
 export default function Inventario() {
   // --- ESTADOS DE DATOS ---
@@ -34,13 +33,19 @@ export default function Inventario() {
 
   useEffect(() => {
     cargarDatos();
+    
+    socketClient.on('menu_actualizado', cargarDatos);
+    
+    return () => {
+        socketClient.off('menu_actualizado', cargarDatos);
+    };
   }, []);
 
   const cargarDatos = async () => {
     try {
       const [resPlatos, resCat] = await Promise.all([
-        axios.get(`${URL_BACKEND}/platos`),
-        axios.get(`${URL_BACKEND}/categorias`)
+        menuService.getPlatos(),
+        menuService.getCategorias()
       ]);
       setPlatos(resPlatos.data);
       setCategorias(resCat.data);
@@ -117,14 +122,14 @@ export default function Inventario() {
       };
       
       if (idEdicion) {
-        await axios.put(`${URL_BACKEND}/admin/platos/${idEdicion}`, datos);
+        await menuService.updatePlato(idEdicion, datos);
         mostrarNotificacion("Plato actualizado", "exito");
       } else {
-        await axios.post(`${URL_BACKEND}/admin/platos`, datos);
+        await menuService.createPlato(datos);
         mostrarNotificacion("Plato creado", "exito");
       }
       cancelarEdicion();
-      cargarDatos(); 
+      cargarDatos();
     } catch (error) {
       mostrarNotificacion("Error al guardar", "error");
     } finally { setCargando(false); }
@@ -151,10 +156,12 @@ export default function Inventario() {
   const confirmarEliminar = async () => {
     if (!modalEliminar) return;
     const { id, tipo } = modalEliminar;
-    const url = tipo === 'plato' ? `/admin/platos/${id}` : `/categorias/${id}`;
-
     try {
-        await axios.delete(`${URL_BACKEND}${url}`);
+        if (tipo === 'plato') {
+            await menuService.deletePlato(id);
+        } else {
+            await menuService.deleteCategoria(id);
+        }
         mostrarNotificacion(`${tipo === 'plato' ? 'Plato' : 'Categoría'} eliminada`, "exito");
         cargarDatos();
     } catch (e) { 
@@ -168,7 +175,7 @@ export default function Inventario() {
     e.preventDefault();
     if (!nuevaCat.trim()) return;
     try {
-        await axios.post(`${URL_BACKEND}/categorias`, { nombre: nuevaCat });
+        await menuService.createCategoria({ nombre: nuevaCat });
         setNuevaCat('');
         mostrarNotificacion("Categoría agregada", "exito");
         cargarDatos();

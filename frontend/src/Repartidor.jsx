@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import socket from 'socket.io-client';
-
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com'; 
-const io = socket(URL_BACKEND);
+import { deliveryService } from './api/deliveryService';
+import { orderService } from './api/orderService';
+import { socketClient } from './api/socketService';
 
 export default function Repartidor() {
   const [pestana, setPestana] = useState('pendientes'); // 'pendientes' o 'historial'
@@ -18,22 +16,22 @@ export default function Repartidor() {
     cargarDatos();
 
     // Escuchar cuando cocina termina algo
-    io.on('orden_lista', (orden) => {
+    socketClient.on('orden_lista', (orden) => {
         if (orden.tipo_entrega === 'domicilio') {
             playNotificationSound();
             cargarDatos(); 
         }
     });
 
-    return () => io.off('orden_lista');
+    return () => socketClient.off('orden_lista');
   }, []);
 
   const cargarDatos = async () => {
     try {
-        const resPendientes = await axios.get(`${URL_BACKEND}/repartidor/pedidos`);
+        const resPendientes = await deliveryService.getPedidos();
         setPedidos(resPendientes.data);
 
-        const resHistorial = await axios.get(`${URL_BACKEND}/repartidor/historial`);
+        const resHistorial = await deliveryService.getHistorial();
         setHistorial(resHistorial.data);
     } catch (error) { console.error("Error cargando datos repartidor"); }
   };
@@ -50,8 +48,8 @@ export default function Repartidor() {
     if (!modalEntregar) return;
 
     try {
-        await axios.patch(`${URL_BACKEND}/ordenes/${modalEntregar}/entregar`);
-        mostrarNotificacion("¡Entrega registrada con éxito! 🚀", "exito");
+        await orderService.entregarOrden(modalEntregar);
+        mostrarNotificacion("¡Entrega registrada con éxito!", "exito");
         cargarDatos(); // Mover de pendiente a historial
     } catch (error) { 
         mostrarNotificacion("Error al registrar la entrega", "error");

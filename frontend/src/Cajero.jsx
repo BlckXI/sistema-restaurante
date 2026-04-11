@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import socket from 'socket.io-client';
-
-const URL_BACKEND = import.meta.env.VITE_SUPABASE_URL ? 'https://api-restaurante-yawj.onrender.com' : 'http://localhost:3000'; 
-
-const io = socket(URL_BACKEND); 
+import { menuService } from './api/menuService';
+import { orderService } from './api/orderService';
+import { reportService } from './api/reportService';
+import { socketClient } from './api/socketService';
 
 export default function Cajero() {
 // --- ESTADOS DE DATOS ---
@@ -16,7 +14,6 @@ const [clientesActivos, setClientesActivos] = useState([]);
 // --- ESTADOS DE FILTRO ---
 const [busqueda, setBusqueda] = useState('');
 const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
-const [ordenStock, setOrdenStock] = useState(''); 
 
 // --- ESTADOS FORMULARIO ---
 const [cliente, setCliente] = useState('');
@@ -50,22 +47,24 @@ useEffect(() => {
       cargarClientesActivos();
   };
 
-  io.on('nueva_orden', actualizarPanel);
-  io.on('orden_lista', actualizarPanel);
-  io.on('orden_anulada', actualizarPanel);
+  socketClient.on('nueva_orden', actualizarPanel);
+  socketClient.on('orden_lista', actualizarPanel);
+  socketClient.on('orden_anulada', actualizarPanel);
+  socketClient.on('menu_actualizado', cargarDatos); // ESCUCHA EL CAMBIO
 
   return () => {
-      io.off('nueva_orden', actualizarPanel);
-      io.off('orden_lista', actualizarPanel);
-      io.off('orden_anulada', actualizarPanel);
+      socketClient.off('nueva_orden', actualizarPanel);
+      socketClient.off('orden_lista', actualizarPanel);
+      socketClient.off('orden_anulada', actualizarPanel);
+      socketClient.off('menu_actualizado', cargarDatos); // LIMPIA LA ESCUCHA
   };
 }, []);
 
 const cargarDatos = async () => {
   try {
     const [resPlatos, resCat] = await Promise.all([
-      axios.get(`${URL_BACKEND}/platos`),
-      axios.get(`${URL_BACKEND}/categorias`)
+      menuService.getPlatos(),
+      menuService.getCategorias()
     ]);
     setPlatos(resPlatos.data);
     setCategorias(resCat.data);
@@ -76,7 +75,7 @@ const cargarDatos = async () => {
 
 const cargarClientesActivos = async () => {
   try {
-      const res = await axios.get(`${URL_BACKEND}/reportes/hoy`);
+      const res = await reportService.getReporteHoy();
       const ordenes = res.data.listaOrdenes || [];
       const unicos = {};
       ordenes.forEach(o => {
@@ -101,20 +100,14 @@ const obtenerStockVisual = (plato) => {
     return plato.stock;
 };
 
-const platosFiltrados = platos
-  .filter(plato => {
-      const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
-      const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
-      return coincideTexto && coincideCategoria;
-  })
-  .sort((a, b) => {
-      if (!ordenStock) return 0;
-      const stockA = obtenerStockVisual(a);
-      const stockB = obtenerStockVisual(b);
-      if (ordenStock === 'mayor') return stockB - stockA;
-      if (ordenStock === 'menor') return stockA - stockB;
-      return 0;
-  });
+const platosFiltrados = platos.filter(plato => {
+    const stockDisponible = obtenerStockVisual(plato);
+    const coincideTexto = plato.nombre.toLowerCase().includes(busqueda.toLowerCase());
+    const coincideCategoria = categoriaSeleccionada === '' || plato.categoria === categoriaSeleccionada;
+    
+    // Solo retornamos el plato si tiene stock mayor a 0 Y coincide con la búsqueda
+    return stockDisponible > 0 && coincideTexto && coincideCategoria;
+});
 
 const seleccionarClienteActivo = (c) => {
   setCliente(c.nombre);
@@ -251,8 +244,8 @@ const procesarOrden = async () => {
   };
 
   try {
-    await axios.post(`${URL_BACKEND}/ordenes`, orden);
-    mostrarNotificacion('¡Orden enviada a cocina! 👨‍🍳', 'exito');
+    await orderService.createOrden(orden);
+    mostrarNotificacion('¡Orden enviada a cocina!', 'exito');
     // RESETEO COMPLETO
     setCarrito([]); 
     setCliente(''); 
@@ -327,15 +320,6 @@ return (
               {categorias.map(cat => <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>)}
           </select>
 
-          <select 
-              className="p-2 border rounded-lg bg-blue-50 text-blue-700 font-bold md:w-1/4 cursor-pointer hover:bg-blue-100 transition" 
-              value={ordenStock} 
-              onChange={e => setOrdenStock(e.target.value)}
-          >
-              <option value="">📦 Stock: Normal</option>
-              <option value="mayor">⬆️ Mayor Cantidad</option>
-              <option value="menor">⬇️ Menor Cantidad</option>
-          </select>
       </div>
 
       <div className="overflow-y-auto flex-1 pr-1">

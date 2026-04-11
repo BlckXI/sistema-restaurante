@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-const URL_BACKEND = 'https://api-restaurante-yawj.onrender.com';
+import { reportService } from './api/reportService';
+import { menuService } from './api/menuService';
+import { orderService } from './api/orderService';
 
 export default function Reportes() {
 const [datos, setDatos] = useState(null);
@@ -20,7 +20,17 @@ const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null);
 
 useEffect(() => { cargarReporte(); }, []);
 
-const cargarReporte = async () => { try { const res = await axios.get(`${URL_BACKEND}/reportes/hoy`); console.log("Datos recibidos:", res.data); setDatos(res.data); } catch (error) { console.error("Error cargando reporte:", error); mostrarNotificacion("Error de conexión o datos corruptos", "error"); } finally { setCargando(false); } };
+const cargarReporte = async () => { 
+    try { 
+        const res = await reportService.getReporteHoy(); 
+        setDatos(res.data); 
+    } catch (error) { 
+        console.error("Error cargando reporte:", error); 
+        mostrarNotificacion("Error de conexión o datos corruptos", "error"); 
+    } finally { 
+        setCargando(false); 
+    } 
+};
 const mostrarNotificacion = (mensaje, tipo) => { setNotificacion({ mensaje, tipo }); setTimeout(() => setNotificacion(null), 3000); };
 const calcularResumenPorTipo = (ordenes) => { const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 }; ordenes?.forEach(orden => { if (orden.estado !== 'anulado' && orden.tipo_entrega) { resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1; } }); return resumen; };
 const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 }; ordenes?.forEach(orden => { if (orden.estado !== 'anulado' && orden.tipo_entrega) { efectivo[orden.tipo_entrega] = (efectivo[orden.tipo_entrega] || 0) + (orden.total || 0); } }); return efectivo; };
@@ -32,7 +42,7 @@ const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, 
 
         try {
             let inventario = [];
-            try { const resInventario = await axios.get(`${URL_BACKEND}/platos`); inventario = resInventario.data || []; } catch (error) { console.error("Error obteniendo inventario", error); }
+            try { const resInventario = await menuService.getPlatos(); inventario = resInventario.data || []; } catch (error) { console.error("Error obteniendo inventario", error); }
 
             const doc = new jsPDF();
             
@@ -182,14 +192,14 @@ const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, 
         } catch (error) { console.error(error); mostrarNotificacion("Error al generar PDF", "error"); }
     };
 
-const registrarGasto = async (e) => { e.preventDefault(); try { await axios.post(`${URL_BACKEND}/gastos`, { descripcion: descGasto, monto: parseFloat(montoGasto) }); setDescGasto(''); setMontoGasto(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
-const registrarIngreso = async (e) => { e.preventDefault(); try { await axios.post(`${URL_BACKEND}/ingresos-extras`, { descripcion: descIngreso, monto: parseFloat(montoIngreso) }); setDescIngreso(''); setMontoIngreso(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
-const eliminarGasto = async (id) => { try { await axios.delete(`${URL_BACKEND}/gastos/${id}`); cargarReporte(); } catch (e) {} };
+const registrarGasto = async (e) => { e.preventDefault(); try { await reportService.addGasto({ descripcion: descGasto, monto: parseFloat(montoGasto) }); setDescGasto(''); setMontoGasto(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
+const registrarIngreso = async (e) => { e.preventDefault(); try { await reportService.addIngresoExtra({ descripcion: descIngreso, monto: parseFloat(montoIngreso) }); setDescIngreso(''); setMontoIngreso(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
+const eliminarGasto = async (id) => { try { await reportService.deleteGasto(id); cargarReporte(); } catch (e) {} };
 const eliminarIngreso = (id) => setModalEliminarIngreso(id);
-const confirmarEliminarIngreso = async () => { try { await axios.delete(`${URL_BACKEND}/ingresos-extras/${modalEliminarIngreso}`); cargarReporte(); setModalEliminarIngreso(null); } catch (e) {} };
+const confirmarEliminarIngreso = async () => { try { await reportService.deleteIngresoExtra(modalEliminarIngreso); cargarReporte(); setModalEliminarIngreso(null); } catch (e) {} };
 const anularOrden = (id) => setModalAnular(id);
-const ejecutarAnulacion = async () => { try { await axios.patch(`${URL_BACKEND}/ordenes/${modalAnular}/anular`); cargarReporte(); setModalAnular(null); } catch (e) { console.error("Error anulando:", e); mostrarNotificacion("Error al anular orden", "error"); } };
-const ejecutarCierre = async () => { try { await axios.post(`${URL_BACKEND}/cierre`, { monto: datos.dineroEnCaja }); setModalCierre(false); mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito"); setTimeout(() => { window.location.reload(); }, 2000); } catch (e) { console.error("Error cerrando:", e); mostrarNotificacion("Error al cerrar caja", "error"); } };
+const ejecutarAnulacion = async () => { try { await orderService.anularOrden(modalAnular); cargarReporte(); setModalAnular(null); } catch (e) { console.error("Error anulando:", e); mostrarNotificacion("Error al anular orden", "error"); } };
+const ejecutarCierre = async () => { try { await reportService.cerrarCaja({ monto: datos.dineroEnCaja }); setModalCierre(false); mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito"); setTimeout(() => { window.location.reload(); }, 2000); } catch (e) { console.error("Error cerrando:", e); mostrarNotificacion("Error al cerrar caja", "error"); } };
 
 if (cargando) return <div className="p-10 text-center">Cargando Reportes...</div>;
 if (!datos) return <div className="p-10 text-center text-red-500">Error: No se recibieron datos del servidor.</div>;
