@@ -109,9 +109,11 @@ const anularOrden = async (req, res) => {
 };
 
 const entregarOrden = async (req, res) => {
-    const { error } = await supabase.from('ordenes').update({ estado: 'entregado' }).eq('id', req.params.id);
+    const id = req.params.id; // <-- Faltaba extraer el ID
+    const { error } = await supabase.from('ordenes').update({ estado: 'entregado' }).eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
-    req.io.emit('orden_entregada', { id: idDeLaOrden });
+    
+    req.io.emit('orden_entregada', { id }); // <-- Corregido el nombre de la variable
     res.status(200).json({ message: 'Orden entregada correctamente' });
 };
 

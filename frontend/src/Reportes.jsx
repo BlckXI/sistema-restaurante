@@ -2,54 +2,55 @@ import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { reportService } from './api/reportService';
-import { menuService } from './api/menuService';
 import { orderService } from './api/orderService';
 import { socketClient } from './api/socketService';
 
 export default function Reportes() {
-const [datos, setDatos] = useState(null);
-const [cargando, setCargando] = useState(true);
+    const [datos, setDatos] = useState(null);
+    const [cargando, setCargando] = useState(true);
 
-const [descGasto, setDescGasto] = useState('');
-const [montoGasto, setMontoGasto] = useState('');
-const [descIngreso, setDescIngreso] = useState('');
-const [montoIngreso, setMontoIngreso] = useState('');
-const [notificacion, setNotificacion] = useState(null);
-const [modalCierre, setModalCierre] = useState(false);
-const [modalAnular, setModalAnular] = useState(null);
-const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null);
+    const [descGasto, setDescGasto] = useState('');
+    const [montoGasto, setMontoGasto] = useState('');
+    const [descIngreso, setDescIngreso] = useState('');
+    const [montoIngreso, setMontoIngreso] = useState('');
+    const [notificacion, setNotificacion] = useState(null);
+    const [modalCierre, setModalCierre] = useState(false);
+    const [modalAnular, setModalAnular] = useState(null);
+    const [modalEliminarIngreso, setModalEliminarIngreso] = useState(null);
 
-useEffect(() => { 
-      cargarReporte(); 
+    useEffect(() => {
+        cargarReporte();
 
-      // ESCUCHAR CAMBIOS EN TIEMPO REAL
-      socketClient.on('nueva_orden', cargarReporte);
-      socketClient.on('orden_anulada', cargarReporte);
-      socketClient.on('orden_lista', cargarReporte);
-      socketClient.on('reporte_actualizado', cargarReporte); 
+        // ESCUCHAR CAMBIOS EN TIEMPO REAL
+        socketClient.on('nueva_orden', cargarReporte);
+        socketClient.on('orden_anulada', cargarReporte);
+        socketClient.on('orden_lista', cargarReporte);
+        socketClient.on('reporte_actualizado', cargarReporte);
 
-      return () => {
-          socketClient.off('nueva_orden', cargarReporte);
-          socketClient.off('orden_anulada', cargarReporte);
-          socketClient.off('orden_lista', cargarReporte);
-          socketClient.on('reporte_actualizado', cargarReporte);
-      };
-  }, []);
+        return () => {
+            socketClient.off('nueva_orden', cargarReporte);
+            socketClient.off('orden_anulada', cargarReporte);
+            socketClient.off('orden_lista', cargarReporte);
+            socketClient.off('reporte_actualizado', cargarReporte); // Corrección de evento off
+        };
+    }, []);
 
-const cargarReporte = async () => { 
-    try { 
-        const res = await reportService.getReporteHoy(); 
-        setDatos(res.data); 
-    } catch (error) { 
-        console.error("Error cargando reporte:", error); 
-        mostrarNotificacion("Error de conexión o datos corruptos", "error"); 
-    } finally { 
-        setCargando(false); 
-    } 
-};
-const mostrarNotificacion = (mensaje, tipo) => { setNotificacion({ mensaje, tipo }); setTimeout(() => setNotificacion(null), 3000); };
-const calcularResumenPorTipo = (ordenes) => { const resumen = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 }; ordenes?.forEach(orden => { if (orden.estado !== 'anulado' && orden.tipo_entrega) { resumen[orden.tipo_entrega] = (resumen[orden.tipo_entrega] || 0) + 1; } }); return resumen; };
-const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, retiro: 0, mesa: 0, personal: 0 }; ordenes?.forEach(orden => { if (orden.estado !== 'anulado' && orden.tipo_entrega) { efectivo[orden.tipo_entrega] = (efectivo[orden.tipo_entrega] || 0) + (orden.total || 0); } }); return efectivo; };
+    const cargarReporte = async () => {
+        try {
+            const res = await reportService.getReporteHoy();
+            setDatos(res.data);
+        } catch (error) {
+            console.error("Error cargando reporte:", error);
+            mostrarNotificacion("Error de conexión o datos corruptos", "error");
+        } finally {
+            setCargando(false);
+        }
+    };
+
+    const mostrarNotificacion = (mensaje, tipo) => {
+        setNotificacion({ mensaje, tipo });
+        setTimeout(() => setNotificacion(null), 3000);
+    };
 
     // --- GENERACIÓN DE PDF FINAL ---
     const generarPDF = async () => {
@@ -57,50 +58,59 @@ const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, 
         mostrarNotificacion("⏳ Generando PDF...", "info");
 
         try {
-            let inventario = [];
-            try { const resInventario = await menuService.getPlatos(); inventario = resInventario.data || []; } catch (error) { console.error("Error obteniendo inventario", error); }
-
             const doc = new jsPDF();
-            
-            const listaOrdenesSegura = datos.listaOrdenes || [];
-            const listaGastosSegura = datos.listaGastos || [];
-            const listaIngresosSegura = datos.listaIngresosExtras || [];
-            const rankingPlatos = datos.rankingPlatos || []; // Datos para la nueva tabla
-            
-            const saldoInicial = parseFloat(datos.saldoInicial || 0);
-            const ingresoVentas = parseFloat(datos.ingresoVentas || 0);
-            const ingresosExtras = parseFloat(datos.totalIngresosExtras || 0);
-            const gastos = parseFloat(datos.totalGastos || 0);
-            const dineroEnCaja = parseFloat(datos.dineroEnCaja || 0);
-            
             const fechaHoy = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-            // Calcular transferencias
-            const transferencias = listaOrdenesSegura.filter(o => o.metodo_pago === 'transferencia' && o.estado !== 'anulado');
-            const totalTransferencias = transferencias.reduce((sum, o) => sum + o.total, 0);
-            const cantidadTransferencias = transferencias.length;
+            // DATOS SEGUROS
+            const listaOrdenesSegura = datos.listaOrdenes || [];
+            const validOrders = listaOrdenesSegura.filter(o => o.estado !== 'anulado');
+            const listaGastosSegura = datos.listaGastos || [];
+            const listaIngresosSegura = datos.listaIngresosExtras || [];
+            const platosDia = datos.platosDia || []; // Datos esperados del backend
 
+            // LÓGICA CONTABLE CLARA
+            const saldoInicial = parseFloat(datos.saldoInicial || 0);
+            const totalIngresosExtras = parseFloat(datos.totalIngresosExtras || 0);
+            const totalGastos = parseFloat(datos.totalGastos || 0);
+
+            // Ventas por método de pago (Solo órdenes válidas)
+            const ventasTransferencia = validOrders
+                .filter(o => o.metodo_pago === 'transferencia')
+                .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+
+            const ventasEfectivo = validOrders
+                .filter(o => o.metodo_pago !== 'transferencia')
+                .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+
+            // Domicilios
+            const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
+            const totalDomicilios = pedidosDomicilio * 0.50;
+
+            // Totales Finales
+            const totalBanco = ventasTransferencia;
+            const totalEfectivo = saldoInicial + ventasEfectivo + totalIngresosExtras + totalDomicilios - totalGastos;
+
+            // ENCABEZADO PDF
             doc.setFontSize(22); doc.setTextColor(41, 128, 185); doc.text("REPORTE FINANCIERO", 14, 20);
             doc.setFontSize(10); doc.setTextColor(100); doc.text("Restaurante D' La Casa", 14, 26);
             doc.setTextColor(0); doc.text(`Fecha: ${fechaHoy}`, 14, 35); doc.text(`Generado: ${new Date().toLocaleTimeString()}`, 14, 40);
 
             let yPos = 50;
 
-            // 1. RESUMEN DE CAJA
+            // 1. RESUMEN DE CAJA (REESTRUCTURADO)
             doc.setFontSize(14); doc.setTextColor(52, 152, 219); doc.text("1. RESUMEN DE CAJA", 14, yPos); yPos += 5;
             autoTable(doc, {
                 startY: yPos,
                 head: [['Concepto', 'Monto ($)']],
                 body: [
                     ['Saldo Inicial', `$${saldoInicial.toFixed(2)}`],
-                    ['+ Ventas Totales', `$${ingresoVentas.toFixed(2)}`],
-                    ['+ Ingresos Extras', `$${ingresosExtras.toFixed(2)}`],
-                    ['- Gastos Operativos', `-$${gastos.toFixed(2)}`],
+                    ['+ Ventas en Efectivo', `$${ventasEfectivo.toFixed(2)}`],
+                    ['+ Ingresos Extras', `$${totalIngresosExtras.toFixed(2)}`],
+                    ['+ Total Domicilios', `$${totalDomicilios.toFixed(2)}`],
+                    ['- Gastos Operativos', `-$${totalGastos.toFixed(2)}`],
                     ['', ''],
-                    [
-                        { content: 'TOTAL EN CAJA', styles: { fontStyle: 'bold', fillColor: [235, 245, 251] } },
-                        { content: `$${dineroEnCaja.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [235, 245, 251], textColor: [41, 128, 185] } }
-                    ]
+                    [{ content: 'TOTAL EN BANCO (Transferencias)', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, { content: `$${totalBanco.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }],
+                    [{ content: 'TOTAL EN EFECTIVO (Caja Física)', styles: { fontStyle: 'bold', fillColor: [235, 245, 251] } }, { content: `$${totalEfectivo.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [235, 245, 251], textColor: [41, 128, 185] } }]
                 ],
                 theme: 'grid',
                 headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
@@ -109,97 +119,55 @@ const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, 
 
             yPos = doc.lastAutoTable.finalY + 15;
 
-            // 2. DESGLOSE POR TIPO
-            doc.setFontSize(14); doc.setTextColor(155, 89, 182); doc.text("2. DESGLOSE POR TIPO DE PEDIDO", 14, yPos); yPos += 5;
-
-            const calcularDesglose = (tipo) => {
-                let cant = 0; let totalComida = 0; let totalEnvio = 0; let totalGeneral = 0;
-                listaOrdenesSegura.forEach(o => {
-                    if (o.tipo_entrega === tipo && o.estado !== 'anulado') {
-                        cant++;
-                        const detalles = o.detalles || [];
-                        const subtotalOrden = detalles.reduce((sum, item) => sum + ((item.precio || 0) * (item.cantidad || 1)), 0);
-                        const totalOrden = parseFloat(o.total || 0);
-                        let envioOrden = totalOrden - subtotalOrden;
-                        if (envioOrden < 0) envioOrden = 0;
-                        totalComida += subtotalOrden; totalEnvio += envioOrden; totalGeneral += totalOrden;
-                    }
-                });
-                return { cant, totalComida, totalEnvio, totalGeneral };
-            };
-
-            const dom = calcularDesglose('domicilio');
-            const ret = calcularDesglose('retiro');
-            const mes = calcularDesglose('mesa');
-            const per = calcularDesglose('personal');
-
-            const totalCantidad = dom.cant + ret.cant + mes.cant + per.cant;
-            const sumaTotalComida = dom.totalComida + ret.totalGeneral + mes.totalGeneral; 
-            const sumaTotalEnvio = dom.totalEnvio;
-            const sumaSubtotal = dom.totalGeneral + ret.totalGeneral + mes.totalGeneral;
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [['Tipo', 'Cantidad', 'Total Comida', 'Total Envío', 'Subtotal']],
-                body: [
-                    ['Domicilio', dom.cant, `$${dom.totalComida.toFixed(2)}`, `$${dom.totalEnvio.toFixed(2)}`, `$${dom.totalGeneral.toFixed(2)}`],
-                    ['Retiro', ret.cant, `$${ret.totalGeneral.toFixed(2)}`, `$0.00`, `$${ret.totalGeneral.toFixed(2)}`],
-                    ['Mesa', mes.cant, `$${mes.totalGeneral.toFixed(2)}`, `$0.00`, `$${mes.totalGeneral.toFixed(2)}`],
-                    ['Personal', per.cant, `$0.00`, `$0.00`, `$0.00`], 
-                    
-                    // Fila de transferencias
-                    [
-                        { content: 'Transferencias (Incluido)', styles: { textColor: [100, 100, 100], fontStyle: 'italic' } },
-                        { content: cantidadTransferencias, styles: { halign: 'center', textColor: [100, 100, 100], fontStyle: 'italic' } },
-                        '-', '-',
-                        { content: `$${totalTransferencias.toFixed(2)}`, styles: { halign: 'right', textColor: [100, 100, 100], fontStyle: 'italic' } }
-                    ],
-
-                    [
-                        { content: 'TOTAL VENTAS', styles: { fontStyle: 'bold' } }, 
-                        { content: totalCantidad, styles: { fontStyle: 'bold', halign: 'center' } }, 
-                        { content: `$${sumaTotalComida.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                        { content: `$${sumaTotalEnvio.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                        { content: `$${sumaSubtotal.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }
-                    ]
-                ],
-                theme: 'striped',
-                headStyles: { fillColor: [142, 68, 173], textColor: 255 },
-                styles: { fontSize: 9, cellPadding: 3 },
-                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 35 }, 1: { halign: 'center', cellWidth: 20 }, 4: { halign: 'right', fontStyle: 'bold' } }
-            });
-
-            // 3. GASTOS
-            yPos = doc.lastAutoTable.finalY + 15;
-            if (listaGastosSegura.length > 0) { if (yPos > 240) { doc.addPage(); yPos = 20; } doc.setFontSize(14); doc.setTextColor(192, 57, 43); doc.text("3. DETALLE DE GASTOS", 14, yPos); yPos += 5; const cuerpoGastos = listaGastosSegura.map(g => [g.descripcion || 'S/D', `-$${parseFloat(g.monto || 0).toFixed(2)}`]); autoTable(doc, { startY: yPos, head: [['Descripción', 'Monto']], body: cuerpoGastos, theme: 'plain', headStyles: { fillColor: [231, 76, 60], textColor: 255 }, columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [192, 57, 43] } } }); yPos = doc.lastAutoTable.finalY + 15; }
-
-            // 4. INGRESOS EXTRAS
-            if (listaIngresosSegura.length > 0) { if (yPos > 240) { doc.addPage(); yPos = 20; } doc.setFontSize(14); doc.setTextColor(22, 160, 133); doc.text("4. INGRESOS EXTRAS", 14, yPos); yPos += 5; const cuerpoIngresos = listaIngresosSegura.map(i => [i.descripcion || 'S/D', `+$${parseFloat(i.monto || 0).toFixed(2)}`]); autoTable(doc, { startY: yPos, head: [['Descripción', 'Monto']], body: cuerpoIngresos, theme: 'plain', headStyles: { fillColor: [26, 188, 156], textColor: 255 }, columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [22, 160, 133] } } }); yPos = doc.lastAutoTable.finalY + 15; }
-
-            // --- 5. PLATOS MÁS VENDIDOS (NUEVA TABLA) ---
-            if (rankingPlatos.length > 0) {
+            // 2. GASTOS
+            if (listaGastosSegura.length > 0) {
                 if (yPos > 240) { doc.addPage(); yPos = 20; }
-                doc.setFontSize(14);
-                doc.setTextColor(243, 156, 18); // Color Naranja/Dorado
-                doc.text("5. PLATOS MÁS VENDIDOS", 14, yPos);
-                yPos += 5;
-                
-                const cuerpoRanking = rankingPlatos.map((p, i) => [`${i + 1}. ${p.nombre}`, p.cantidad]);
-                
+                doc.setFontSize(14); doc.setTextColor(192, 57, 43); doc.text("2. DETALLE DE GASTOS", 14, yPos); yPos += 5;
+                const cuerpoGastos = listaGastosSegura.map(g => [g.descripcion || 'S/D', `-$${parseFloat(g.monto || 0).toFixed(2)}`]);
                 autoTable(doc, {
-                    startY: yPos,
-                    head: [['Plato', 'Cantidad Vendida']],
-                    body: cuerpoRanking,
-                    theme: 'striped',
-                    headStyles: { fillColor: [243, 156, 18], textColor: 255 },
-                    columnStyles: { 1: { halign: 'center', fontStyle: 'bold' } }
+                    startY: yPos, head: [['Descripción', 'Monto']], body: cuerpoGastos, theme: 'plain', headStyles: { fillColor: [231, 76, 60], textColor: 255 }, columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [192, 57, 43] } }
                 });
                 yPos = doc.lastAutoTable.finalY + 15;
             }
 
-            // 6. INVENTARIO (RENUMERADO)
-            const inventarioConStock = inventario.filter(p => (p.stock || 0) > 0);
-            if (inventarioConStock.length > 0) { if (yPos > 220) { doc.addPage(); yPos = 20; } doc.setFontSize(14); doc.setTextColor(230, 126, 34); doc.text("6. INVENTARIO RESTANTE", 14, yPos); yPos += 5; const inventarioOrdenado = [...inventarioConStock].sort((a, b) => (a.stock || 0) - (b.stock || 0)); const cuerpoInventario = inventarioOrdenado.map(p => { const stock = p.stock || 0; return [p.nombre, stock, stock <= 5 ? 'BAJO' : 'OK']; }); autoTable(doc, { startY: yPos, head: [['Producto', 'Stock', 'Estado']], body: cuerpoInventario, theme: 'grid', headStyles: { fillColor: [230, 126, 34], textColor: 255 }, didParseCell: function (data) { if (data.section === 'body' && data.column.index === 1) { if (parseInt(data.cell.raw) <= 5) { data.cell.styles.textColor = [231, 76, 60]; data.cell.styles.fontStyle = 'bold'; } } }, columnStyles: { 1: { halign: 'center', fontStyle: 'bold' }, 2: { halign: 'center' } } }); }
+            // 3. INGRESOS EXTRAS
+            if (listaIngresosSegura.length > 0) {
+                if (yPos > 240) { doc.addPage(); yPos = 20; }
+                doc.setFontSize(14); doc.setTextColor(22, 160, 133); doc.text("3. INGRESOS EXTRAS", 14, yPos); yPos += 5;
+                const cuerpoIngresos = listaIngresosSegura.map(i => [i.descripcion || 'S/D', `+$${parseFloat(i.monto || 0).toFixed(2)}`]);
+                autoTable(doc, {
+                    startY: yPos, head: [['Descripción', 'Monto']], body: cuerpoIngresos, theme: 'plain', headStyles: { fillColor: [26, 188, 156], textColor: 255 }, columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [22, 160, 133] } }
+                });
+                yPos = doc.lastAutoTable.finalY + 15;
+            }
+
+            // 4. PLATOS DEL DÍA (NUEVA TABLA)
+            if (platosDia.length > 0) {
+                if (yPos > 240) { doc.addPage(); yPos = 20; }
+                doc.setFontSize(14); doc.setTextColor(243, 156, 18); doc.text("4. PLATOS DEL DÍA", 14, yPos); yPos += 5;
+
+                const cuerpoPlatos = platosDia.map(p => {
+                    const inicial = p.inicial || 0; const vendidos = p.vendidos || 0;
+                    const consumo = p.consumo || 0; const final = p.final || 0;
+                    const diferencia = inicial - vendidos - consumo - final;
+                    return [p.nombre, inicial, vendidos, consumo, final, diferencia];
+                });
+
+                autoTable(doc, {
+                    startY: yPos,
+                    head: [['Plato', 'Inicial', 'Vendidos', 'Consumo', 'Final', 'Diferencia']],
+                    body: cuerpoPlatos,
+                    theme: 'striped',
+                    headStyles: { fillColor: [243, 156, 18], textColor: 255 },
+                    didParseCell: function (data) {
+                        if (data.section === 'body' && data.column.index === 5) {
+                            const val = parseInt(data.cell.raw);
+                            if (val !== 0) { data.cell.styles.textColor = [231, 76, 60]; data.cell.styles.fontStyle = 'bold'; }
+                        }
+                    },
+                    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center', fontStyle: 'bold' } }
+                });
+            }
 
             const nombreArchivo = `Reporte_${new Date().toISOString().split('T')[0]}.pdf`;
             doc.save(nombreArchivo);
@@ -208,66 +176,145 @@ const calcularEfectivoPorTipo = (ordenes) => { const efectivo = { domicilio: 0, 
         } catch (error) { console.error(error); mostrarNotificacion("Error al generar PDF", "error"); }
     };
 
-const registrarGasto = async (e) => { e.preventDefault(); try { await reportService.addGasto({ descripcion: descGasto, monto: parseFloat(montoGasto) }); setDescGasto(''); setMontoGasto(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
-const registrarIngreso = async (e) => { e.preventDefault(); try { await reportService.addIngresoExtra({ descripcion: descIngreso, monto: parseFloat(montoIngreso) }); setDescIngreso(''); setMontoIngreso(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
-const eliminarGasto = async (id) => { try { await reportService.deleteGasto(id); cargarReporte(); } catch (e) {} };
-const eliminarIngreso = (id) => setModalEliminarIngreso(id);
-const confirmarEliminarIngreso = async () => { try { await reportService.deleteIngresoExtra(modalEliminarIngreso); cargarReporte(); setModalEliminarIngreso(null); } catch (e) {} };
-const anularOrden = (id) => setModalAnular(id);
-const ejecutarAnulacion = async () => { try { await orderService.anularOrden(modalAnular); cargarReporte(); setModalAnular(null); } catch (e) { console.error("Error anulando:", e); mostrarNotificacion("Error al anular orden", "error"); } };
-const ejecutarCierre = async () => { try { await reportService.cerrarCaja({ monto: datos.dineroEnCaja }); setModalCierre(false); mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito"); setTimeout(() => { window.location.reload(); }, 2000); } catch (e) { console.error("Error cerrando:", e); mostrarNotificacion("Error al cerrar caja", "error"); } };
+    // HANDLERS
+    const registrarGasto = async (e) => { e.preventDefault(); try { await reportService.addGasto({ descripcion: descGasto, monto: parseFloat(montoGasto) }); setDescGasto(''); setMontoGasto(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
+    const registrarIngreso = async (e) => { e.preventDefault(); try { await reportService.addIngresoExtra({ descripcion: descIngreso, monto: parseFloat(montoIngreso) }); setDescIngreso(''); setMontoIngreso(''); cargarReporte(); } catch (e) { mostrarNotificacion("Error", "error"); } };
+    const eliminarGasto = async (id) => { try { await reportService.deleteGasto(id); cargarReporte(); } catch (e) {} };
+    const eliminarIngreso = (id) => setModalEliminarIngreso(id);
+    const confirmarEliminarIngreso = async () => { try { await reportService.deleteIngresoExtra(modalEliminarIngreso); cargarReporte(); setModalEliminarIngreso(null); } catch (e) {} };
+    const anularOrden = (id) => setModalAnular(id);
+    const ejecutarAnulacion = async () => { try { await orderService.anularOrden(modalAnular); cargarReporte(); setModalAnular(null); } catch (e) { console.error("Error anulando:", e); mostrarNotificacion("Error al anular orden", "error"); } };
+    
+    // Cierre de caja enviará el Total en Efectivo real
+    const ejecutarCierre = async () => {
+        try {
+            // Se asume que totalEfectivoUI se calcula antes del return
+            await reportService.cerrarCaja({ monto: totalEfectivoUI });
+            setModalCierre(false);
+            mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito");
+            setTimeout(() => { window.location.reload(); }, 2000);
+        } catch (e) { console.error("Error cerrando:", e); mostrarNotificacion("Error al cerrar caja", "error"); }
+    };
 
-if (cargando) return <div className="p-10 text-center">Cargando Reportes...</div>;
-if (!datos) return <div className="p-10 text-center text-red-500">Error: No se recibieron datos del servidor.</div>;
+    if (cargando) return <div className="p-10 text-center">Cargando Reportes...</div>;
+    if (!datos) return <div className="p-10 text-center text-red-500">Error: No se recibieron datos del servidor.</div>;
 
-const listaOrdenesSegura = datos.listaOrdenes || [];
-const listaGastosSegura = datos.listaGastos || [];
-const listaIngresosSegura = datos.listaIngresosExtras || [];
-const rankingPlatosSeguro = datos.rankingPlatos || [];
+    // --- CÁLCULOS PARA LA INTERFAZ ---
+    const listaOrdenesSegura = datos.listaOrdenes || [];
+    const validOrders = listaOrdenesSegura.filter(o => o.estado !== 'anulado');
+    const listaGastosSegura = datos.listaGastos || [];
+    const listaIngresosSegura = datos.listaIngresosExtras || [];
+    const platosDia = datos.platosDia || []; // Asumiendo que vendrán del backend
 
-const resumenTipo = calcularResumenPorTipo(listaOrdenesSegura);
-const efectivoPorTipo = calcularEfectivoPorTipo(listaOrdenesSegura);
-const transferencias = listaOrdenesSegura.filter(o => o.metodo_pago === 'transferencia' && o.estado !== 'anulado');
-const totalTransferenciasUI = transferencias.reduce((sum, o) => sum + o.total, 0);
+    const saldoInicialUI = parseFloat(datos.saldoInicial || 0);
+    const totalIngresosExtrasUI = parseFloat(datos.totalIngresosExtras || 0);
+    const totalGastosUI = parseFloat(datos.totalGastos || 0);
 
-const tipoConfig = { domicilio: { emoji: '🛵', label: 'Domicilio' }, retiro: { emoji: '🛍️', label: 'Retiro' }, mesa: { emoji: '🍽️', label: 'Mesa' }, personal: { emoji: '👨‍🍳', label: 'Personal' } };
+    const ventasTransferenciaUI = validOrders.filter(o => o.metodo_pago === 'transferencia').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const ventasEfectivoUI = validOrders.filter(o => o.metodo_pago !== 'transferencia').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const cantidadTransferencias = validOrders.filter(o => o.metodo_pago === 'transferencia').length;
 
-return (
-    <div className="p-4 md:p-8 bg-gray-100 min-h-screen">
-        {modalEliminarIngreso && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="bg-white p-6 rounded shadow-lg"><h3 className="text-lg font-bold">¿Eliminar Ingreso?</h3><div className="flex gap-2 mt-4 justify-end"><button onClick={() => setModalEliminarIngreso(null)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={confirmarEliminarIngreso} className="px-4 py-2 bg-red-600 text-white rounded">Eliminar</button></div></div></div>}
-        {modalAnular && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="bg-white p-6 rounded shadow-lg"><h3 className="text-lg font-bold">¿Anular Orden?</h3><div className="flex gap-2 mt-4 justify-end"><button onClick={() => setModalAnular(null)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={ejecutarAnulacion} className="px-4 py-2 bg-red-600 text-white rounded">Sí, Anular</button></div></div></div>}
-        {modalCierre && <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-900/90"><div className="bg-white p-6 rounded shadow-lg text-center"><h3 className="text-xl font-bold">Cierre de Caja</h3><p className="text-2xl font-bold my-4">${datos.dineroEnCaja}</p><div className="flex gap-2 justify-center"><button onClick={() => setModalCierre(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={ejecutarCierre} className="px-4 py-2 bg-blue-600 text-white rounded">Confirmar</button></div></div></div>}
-        {notificacion && <div className={`fixed top-5 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>{notificacion.mensaje}</div>}
+    const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
+    const totalDomiciliosUI = pedidosDomicilio * 0.50;
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4 mb-6">
-            <h1 className="text-3xl font-bold text-gray-800">📊 Finanzas del Día</h1>
-            <div className="flex gap-2"><button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded shadow flex items-center gap-2">🖨️ PDF</button></div>
-        </div>
+    const totalBancoUI = ventasTransferenciaUI;
+    const totalEfectivoUI = saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosUI - totalGastosUI;
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg border"><p className="text-xs font-bold uppercase text-gray-500">Saldo Ayer</p><p className="text-xl font-bold">${datos.saldoInicial || "0.00"}</p></div>
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200"><p className="text-xs font-bold uppercase text-green-600">+ Ventas Comida</p><p className="text-xl font-bold text-green-700">${datos.ingresoVentas || "0.00"}</p></div>
-            <div className="bg-teal-50 p-4 rounded-lg border border-teal-200"><p className="text-xs font-bold uppercase text-teal-600">+ Ingresos Extras</p><p className="text-xl font-bold text-teal-700">${datos.totalIngresosExtras || "0.00"}</p></div>
-            <div className="bg-red-50 p-4 rounded-lg border border-red-200"><p className="text-xs font-bold uppercase text-red-600">- Gastos</p><p className="text-xl font-bold text-red-700">${datos.totalGastos || "0.00"}</p></div>
-            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200"><p className="text-xs font-bold uppercase text-indigo-600">🏦 Transferencias</p><p className="text-xl font-bold text-indigo-700">${totalTransferenciasUI.toFixed(2)}</p><p className="text-[10px] text-indigo-400">{transferencias.length} movs.</p></div>
-            <div className="bg-blue-600 p-4 rounded-lg shadow-lg text-white"><p className="text-xs font-bold uppercase text-blue-100">Total Caja</p><p className="text-3xl font-bold">${datos.dineroEnCaja || "0.00"}</p><button onClick={() => setModalCierre(true)} className="mt-2 bg-white text-blue-700 text-xs font-bold py-1 px-3 rounded w-full">🔒 CERRAR</button></div>
-        </div>
+    return (
+        <div className="p-4 md:p-8 bg-gray-100 min-h-screen">
+            {/* MODALES */}
+            {modalEliminarIngreso && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="bg-white p-6 rounded shadow-lg"><h3 className="text-lg font-bold">¿Eliminar Ingreso?</h3><div className="flex gap-2 mt-4 justify-end"><button onClick={() => setModalEliminarIngreso(null)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={confirmarEliminarIngreso} className="px-4 py-2 bg-red-600 text-white rounded">Eliminar</button></div></div></div>}
+            {modalAnular && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="bg-white p-6 rounded shadow-lg"><h3 className="text-lg font-bold">¿Anular Orden?</h3><div className="flex gap-2 mt-4 justify-end"><button onClick={() => setModalAnular(null)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={ejecutarAnulacion} className="px-4 py-2 bg-red-600 text-white rounded">Sí, Anular</button></div></div></div>}
+            {modalCierre && <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-900/90"><div className="bg-white p-6 rounded shadow-lg text-center"><h3 className="text-xl font-bold">Cierre de Caja (Efectivo)</h3><p className="text-2xl font-bold my-4 text-blue-600">${totalEfectivoUI.toFixed(2)}</p><div className="flex gap-2 justify-center"><button onClick={() => setModalCierre(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={ejecutarCierre} className="px-4 py-2 bg-blue-600 text-white rounded">Confirmar</button></div></div></div>}
+            {notificacion && <div className={`fixed top-5 right-5 px-6 py-3 rounded shadow-xl z-50 text-white font-bold ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>{notificacion.mensaje}</div>}
 
-        <div className="bg-white rounded-lg shadow-sm border p-5 mb-6">
-            <h2 className="font-bold text-lg mb-4 text-gray-700">📊 Distribución</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><h3 className="font-bold text-gray-600 mb-3 text-sm uppercase">Cantidad</h3><div className="space-y-3">{Object.entries(tipoConfig).map(([tipo, config]) => (<div key={tipo} className="flex justify-between items-center p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><span>{config.emoji}</span><span>{config.label}</span></div><div className="text-right"><p className="text-2xl font-bold">{resumenTipo[tipo] || 0}</p></div></div>))}</div></div>
-                <div><h3 className="font-bold text-gray-600 mb-3 text-sm uppercase">Dinero</h3><div className="space-y-3">{Object.entries(tipoConfig).map(([tipo, config]) => (<div key={tipo} className="flex justify-between items-center p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><span>{config.emoji}</span><span>{config.label}</span></div><div className="text-right"><p className="text-2xl font-bold text-green-600">${(efectivoPorTipo[tipo] || 0).toFixed(2)}</p></div></div>))}</div></div>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4 mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">📊 Resumen de Caja</h1>
+                <div className="flex gap-2"><button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded shadow flex items-center gap-2">🖨️ Imprimir PDF</button></div>
+            </div>
+
+            {/* DASHBOARD Kpis - REESTRUCTURADO */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
+                <div className="bg-gray-50 p-4 rounded-lg border col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-gray-500">Saldo Inicial</p><p className="text-xl font-bold">${saldoInicialUI.toFixed(2)}</p></div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-green-600">Ventas Efectivo</p><p className="text-xl font-bold text-green-700">${ventasEfectivoUI.toFixed(2)}</p></div>
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-teal-600">Ingresos Extras</p><p className="text-xl font-bold text-teal-700">${totalIngresosExtrasUI.toFixed(2)}</p></div>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-yellow-600">Total Domicilios</p><p className="text-xl font-bold text-yellow-700">${totalDomiciliosUI.toFixed(2)}</p><p className="text-[10px] text-yellow-600">{pedidosDomicilio} pedidos x $0.50</p></div>
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-red-600">Gastos</p><p className="text-xl font-bold text-red-700">-${totalGastosUI.toFixed(2)}</p></div>
+                
+                {/* BANCO VS EFECTIVO */}
+                <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-300 col-span-2 lg:col-span-1 flex flex-col justify-center"><p className="text-xs font-bold uppercase text-indigo-600">🏦 En Banco (Transf.)</p><p className="text-2xl font-bold text-indigo-700">${totalBancoUI.toFixed(2)}</p><p className="text-[10px] text-indigo-500">{cantidadTransferencias} movimientos</p></div>
+                <div className="bg-blue-600 p-4 rounded-lg shadow-lg text-white col-span-4 lg:col-span-2 flex flex-col justify-center items-center"><p className="text-xs font-bold uppercase text-blue-100 mb-1">💵 Total Efectivo (Caja Física)</p><p className="text-3xl font-bold">${totalEfectivoUI.toFixed(2)}</p><button onClick={() => setModalCierre(true)} className="mt-2 bg-white text-blue-700 text-xs font-bold py-1.5 px-6 rounded shadow hover:bg-gray-100">🔒 CERRAR CAJA</button></div>
+            </div>
+
+            {/* TABLAS SECUNDARIAS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-red-600">💸 Gastos Operativos</h2><form onSubmit={registrarGasto} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Hielo..." className="flex-1 p-2 border rounded text-sm" value={descGasto} onChange={e => setDescGasto(e.target.value)} required /><input type="number" step="0.01" placeholder="$" className="w-24 p-2 border rounded text-sm" value={montoGasto} onChange={e => setMontoGasto(e.target.value)} required /><button type="submit" className="bg-red-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaGastosSegura.length > 0 ? (listaGastosSegura.map(g => (<tr key={g.id}><td className="py-2">{g.descripcion}</td><td className="py-2 text-right font-bold text-red-600">-${(g.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarGasto(g.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin gastos</td></tr>)}</tbody></table></div></div>
+                <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2><form onSubmit={registrarIngreso} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Inyección de capital..." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} required /><input type="number" step="0.01" placeholder="$" className="w-24 p-2 border rounded text-sm" value={montoIngreso} onChange={e => setMontoIngreso(e.target.value)} required /><button type="submit" className="bg-teal-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaIngresosSegura.length > 0 ? (listaIngresosSegura.map(i => (<tr key={i.id}><td className="py-2">{i.descripcion}</td><td className="py-2 text-right font-bold text-teal-600">+${(i.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin ingresos extras</td></tr>)}</tbody></table></div></div>
+            </div>
+
+            {/* PLATOS DEL DÍA (NUEVA ESTRUCTURA) */}
+            <div className="bg-white rounded-lg shadow-sm border p-5 mb-6 overflow-x-auto">
+                <h2 className="font-bold text-lg mb-4 text-orange-600">🍲 Platos del Día (Cuadre de Inventario)</h2>
+                <table className="w-full text-sm text-center">
+                    <thead className="bg-orange-50 text-orange-800">
+                        <tr>
+                            <th className="py-2 px-4 text-left">Plato</th>
+                            <th className="py-2 px-4">Inicial</th>
+                            <th className="py-2 px-4">Vendidos</th>
+                            <th className="py-2 px-4">Consumo Personal</th>
+                            <th className="py-2 px-4">Final</th>
+                            <th className="py-2 px-4">Diferencia</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {platosDia.length > 0 ? platosDia.map((p, idx) => {
+                            const inicial = p.inicial || 0; const vendidos = p.vendidos || 0;
+                            const consumo = p.consumo || 0; const final = p.final || 0;
+                            const diferencia = inicial - vendidos - consumo - final;
+                            return (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                    <td className="py-2 px-4 text-left font-medium">{p.nombre}</td>
+                                    <td className="py-2 px-4">{inicial}</td>
+                                    <td className="py-2 px-4 text-blue-600 font-bold">{vendidos}</td>
+                                    <td className="py-2 px-4 text-gray-500">{consumo}</td>
+                                    <td className="py-2 px-4">{final}</td>
+                                    <td className={`py-2 px-4 font-bold ${diferencia === 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {diferencia}
+                                    </td>
+                                </tr>
+                            )
+                        }) : (
+                            <tr><td colSpan="6" className="py-4 text-gray-400 italic">No hay datos de platos del día configurados desde el sistema/backend.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* HISTORIAL DE ÓRDENES */}
+            <div className="bg-white rounded-lg shadow-sm border overflow-hidden mb-10">
+                <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center"><h3 className="font-bold text-lg text-gray-700">📜 Historial de Movimientos</h3><div className="flex gap-2"><span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado || "0.00"}</span><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Cant: {listaOrdenesSegura.length}</span></div></div>
+                <div className="overflow-x-auto max-h-96">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Pago</th><th className="px-4 py-3">Total</th><th className="px-4 py-3 text-right">Opción</th></tr></thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {listaOrdenesSegura.length > 0 ? (listaOrdenesSegura.map((orden) => (
+                                <tr key={orden.id} className={`transition-colors ${orden.estado === 'anulado' ? 'bg-red-50 opacity-60' : 'hover:bg-gray-50'}`}>
+                                    <td className="px-4 py-3 font-bold">#{orden.numero_diario || orden.id}</td>
+                                    <td className="px-4 py-3">{orden.cliente}</td>
+                                    <td className="px-4 py-3 capitalize">{orden.tipo_entrega}</td>
+                                    <td className="px-4 py-3">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${orden.metodo_pago === 'transferencia' ? 'bg-indigo-100 text-indigo-800' : 'bg-green-100 text-green-800'}`}>
+                                            {orden.metodo_pago || 'efectivo'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 font-bold">${(orden.total || 0).toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-right">{orden.estado !== 'anulado' && (<button onClick={() => anularOrden(orden.id)} className="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded" title="Anular">🚫</button>)}</td>
+                                </tr>
+                            ))) : (<tr><td colSpan="6" className="text-center p-4">No hay órdenes registradas hoy.</td></tr>)}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-red-600">💸 Gastos</h2><form onSubmit={registrarGasto} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Hielo..." className="flex-1 p-2 border rounded text-sm" value={descGasto} onChange={e => setDescGasto(e.target.value)} /><input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoGasto} onChange={e => setMontoGasto(e.target.value)} /><button type="submit" className="bg-red-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaGastosSegura.length > 0 ? (listaGastosSegura.map(g => (<tr key={g.id}><td className="py-2">{g.descripcion}</td><td className="py-2 text-right font-bold text-red-600">-${(g.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarGasto(g.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin gastos</td></tr>)}</tbody></table></div></div>
-            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2><form onSubmit={registrarIngreso} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Inyección de capital..." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} /><input type="number" placeholder="$" className="w-20 p-2 border rounded text-sm" value={montoIngreso} onChange={e => setMontoIngreso(e.target.value)} /><button type="submit" className="bg-teal-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaIngresosSegura.length > 0 ? (listaIngresosSegura.map(i => (<tr key={i.id}><td className="py-2">{i.descripcion}</td><td className="py-2 text-right font-bold text-teal-600">+${(i.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin ingresos extras</td></tr>)}</tbody></table></div></div>
-            <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg text-gray-700 mb-4">🏆 Top Ventas</h2><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{rankingPlatosSeguro.length > 0 ? (rankingPlatosSeguro.map((p, i) => (<tr key={i}><td className="py-2"><span className="text-xs text-gray-400 mr-2">#{i + 1}</span>{p.nombre}</td><td className="py-2 text-right font-bold text-blue-600">{p.cantidad}</td></tr>))) : (<tr><td colSpan="2" className="text-center text-gray-400 py-2">Sin ventas aún</td></tr>)}</tbody></table></div></div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mb-10"><div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center"><h3 className="font-bold text-lg text-gray-700">📜 Historial</h3><div className="flex gap-2"><span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">Anulado: ${datos.totalAnulado || "0.00"}</span><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Cant: {listaOrdenesSegura.length}</span></div></div><div className="overflow-x-auto max-h-96"><table className="w-full text-left text-sm"><thead className="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Total</th><th className="px-4 py-3 text-right">Opción</th></tr></thead><tbody className="divide-y divide-gray-200">{listaOrdenesSegura.length > 0 ? (listaOrdenesSegura.map((orden) => (<tr key={orden.id} className={`transition-colors ${orden.estado === 'anulado' ? 'bg-red-50 opacity-60' : 'hover:bg-gray-50'}`}><td className="px-4 py-3 font-bold">#{orden.numero_diario || orden.id}</td><td className="px-4 py-3">{orden.cliente}</td><td className="px-4 py-3">{orden.tipo_entrega}</td><td className="px-4 py-3">{orden.estado}</td><td className="px-4 py-3 font-bold">${(orden.total || 0).toFixed(2)}</td><td className="px-4 py-3 text-right">{orden.estado !== 'anulado' && (<button onClick={() => anularOrden(orden.id)} className="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded">🚫</button>)}</td></tr>))) : (<tr><td colSpan="6" className="text-center p-4">No hay órdenes registradas hoy.</td></tr>)}</tbody></table></div></div>
-    </div>
-);
+    );
 }
