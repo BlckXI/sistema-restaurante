@@ -8,22 +8,18 @@ export default function Cocina() {
 
   // 1. Función ROBUSTA para convertir "1:30 PM" a minutos
   const convertirHoraAMinutos = (horaString) => {
-    // Si no hay hora o no es un texto, lo ignoramos
     if (!horaString || typeof horaString !== 'string') return null;
     
-    // ASPIRADORA: Quitamos espacios al inicio/final y dobles espacios
     const limpio = horaString.trim().replace(/\s+/g, ' ');
     const partes = limpio.split(' ');
     
     if (partes.length < 2) return null; 
     
-    // Extraemos hora y minuto de forma segura
     const [horaStr, minutoStr] = partes[0].split(':');
     const hora = parseInt(horaStr, 10);
     const minuto = parseInt(minutoStr, 10);
     const ampm = partes[1].toUpperCase();
     
-    // Si la matemática falló por algún símbolo raro, devolvemos null
     if (isNaN(hora) || isNaN(minuto)) return null;
 
     let hora24 = hora;
@@ -41,31 +37,16 @@ export default function Cocina() {
       const minA = convertirHoraAMinutos(a.hora_programada);
       const minB = convertirHoraAMinutos(b.hora_programada);
 
-      // Si AMBAS tienen hora programada, ordenar de la más temprana a la más tarde
       if (minA !== null && minB !== null) {
-          if (minA !== minB) return minA - minB; // Cronológico
+          if (minA !== minB) return minA - minB; 
       }
 
-      // Si solo una tiene hora programada, darle prioridad (ponerla al inicio)
       if (minA !== null && minB === null) return -1;
       if (minA === null && minB !== null) return 1;
 
-      // Si tienen la misma hora (o si ninguna de las dos tiene hora), ordenamos por número de ticket
       return (a.numero_diario || a.id) - (b.numero_diario || b.id);
     });
   };
-
-  useEffect(() => {
-    cargarOrdenesPendientes();
-    
-    const manejarNuevaOrden = (nuevaOrden) => {
-      setOrdenes(prev => ordenarPedidos([...prev, nuevaOrden]));
-      playNotificationSound();
-    };
-
-    socketClient.on('nueva_orden', manejarNuevaOrden);
-    return () => socketClient.off('nueva_orden', manejarNuevaOrden);
-  }, []);
 
   const cargarOrdenesPendientes = async () => {
     try {
@@ -76,19 +57,51 @@ export default function Cocina() {
     }
   };
 
-  const terminarOrden = async (id) => {
-    try {
-        await orderService.completarOrden(id);
-        setOrdenes(prev => prev.filter(o => o.id !== id));
-    } catch (error) {
-        alert('Error al completar orden');
-    }
-  };
-
   const playNotificationSound = () => {
     if (audioRef.current) {
         audioRef.current.currentTime = 0; 
-        audioRef.current.play().catch(e => console.log("Audio bloqueado - Presiona 'Activar Sonido'"));
+        audioRef.current.play().catch(e => console.log("Audio bloqueado por el navegador - Presiona 'Activar Sonido' una vez"));
+    }
+  };
+
+  // 3. EFECTO PRINCIPAL (Sincronización WebSockets)
+  useEffect(() => {
+    // Carga inicial
+    cargarOrdenesPendientes();
+
+    // Handler para cuando llega algo NUEVO (Recarga + Sonido)
+    const manejarNuevaOrden = () => {
+      cargarOrdenesPendientes();
+      playNotificationSound();
+    };
+
+    // Handler para cuando alguien más COMPLETA o ANULA (Solo recarga silenciosa)
+    const manejarActualizacion = () => {
+      cargarOrdenesPendientes();
+    };
+
+    // Escuchar eventos
+    socketClient.on('nueva_orden', manejarNuevaOrden);
+    socketClient.on('orden_anulada', manejarActualizacion);
+    socketClient.on('orden_lista', manejarActualizacion);
+    
+    // Limpieza al desmontar
+    return () => {
+        socketClient.off('nueva_orden', manejarNuevaOrden);
+        socketClient.off('orden_anulada', manejarActualizacion);
+        socketClient.off('orden_lista', manejarActualizacion);
+    };
+  }, []);
+
+  const terminarOrden = async (id) => {
+    try {
+        // Al completarla aquí, borramos la tarjeta localmente para que sea instantáneo para el que hizo clic
+        setOrdenes(prev => prev.filter(o => o.id !== id));
+        // Esto le avisa al backend, el backend emite 'orden_lista' y las OTRAS tablets se actualizan
+        await orderService.completarOrden(id);
+    } catch (error) {
+        alert('Error al completar orden');
+        cargarOrdenesPendientes(); // Si falla, recargamos para evitar desincronización
     }
   };
 
@@ -110,7 +123,7 @@ export default function Cocina() {
           onClick={playNotificationSound} 
           className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-bold flex gap-2 items-center"
         >
-           🔔 Activar Sonido
+          🔔 Activar Sonido
         </button>
       </div>
       
