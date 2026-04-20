@@ -31,7 +31,7 @@ export default function Reportes() {
             socketClient.off('nueva_orden', cargarReporte);
             socketClient.off('orden_anulada', cargarReporte);
             socketClient.off('orden_lista', cargarReporte);
-            socketClient.off('reporte_actualizado', cargarReporte); // Corrección de evento off
+            socketClient.off('reporte_actualizado', cargarReporte);
         };
     }, []);
 
@@ -66,7 +66,7 @@ export default function Reportes() {
             const validOrders = listaOrdenesSegura.filter(o => o.estado !== 'anulado');
             const listaGastosSegura = datos.listaGastos || [];
             const listaIngresosSegura = datos.listaIngresosExtras || [];
-            const platosDia = datos.platosDia || []; // Datos esperados del backend
+            const platosDia = datos.platosDia || []; 
 
             // LÓGICA CONTABLE CLARA
             const saldoInicial = parseFloat(datos.saldoInicial || 0);
@@ -97,7 +97,7 @@ export default function Reportes() {
 
             let yPos = 50;
 
-            // 1. RESUMEN DE CAJA (REESTRUCTURADO)
+            // 1. RESUMEN DE CAJA
             doc.setFontSize(14); doc.setTextColor(52, 152, 219); doc.text("1. RESUMEN DE CAJA", 14, yPos); yPos += 5;
             autoTable(doc, {
                 startY: yPos,
@@ -141,31 +141,26 @@ export default function Reportes() {
                 yPos = doc.lastAutoTable.finalY + 15;
             }
 
-            // 4. PLATOS DEL DÍA (NUEVA TABLA)
+            // 4. PLATOS DEL DÍA (SIN COLUMNA DIFERENCIA)
             if (platosDia.length > 0) {
                 if (yPos > 240) { doc.addPage(); yPos = 20; }
                 doc.setFontSize(14); doc.setTextColor(243, 156, 18); doc.text("4. PLATOS DEL DÍA", 14, yPos); yPos += 5;
 
-                const cuerpoPlatos = platosDia.map(p => {
-                    const inicial = p.inicial || 0; const vendidos = p.vendidos || 0;
-                    const consumo = p.consumo || 0; const final = p.final || 0;
-                    const diferencia = inicial - vendidos - consumo - final;
-                    return [p.nombre, inicial, vendidos, consumo, final, diferencia];
-                });
+                const cuerpoPlatos = platosDia.map(p => [
+                    p.nombre, 
+                    p.inicial || 0, 
+                    p.vendidos || 0, 
+                    p.consumo || 0, 
+                    p.final || 0
+                ]);
 
                 autoTable(doc, {
                     startY: yPos,
-                    head: [['Plato', 'Inicial', 'Vendidos', 'Consumo', 'Final', 'Diferencia']],
+                    head: [['Plato', 'Inicial', 'Vendidos', 'Consumo', 'Final']],
                     body: cuerpoPlatos,
                     theme: 'striped',
                     headStyles: { fillColor: [243, 156, 18], textColor: 255 },
-                    didParseCell: function (data) {
-                        if (data.section === 'body' && data.column.index === 5) {
-                            const val = parseInt(data.cell.raw);
-                            if (val !== 0) { data.cell.styles.textColor = [231, 76, 60]; data.cell.styles.fontStyle = 'bold'; }
-                        }
-                    },
-                    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center', fontStyle: 'bold' } }
+                    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } }
                 });
             }
 
@@ -185,10 +180,9 @@ export default function Reportes() {
     const anularOrden = (id) => setModalAnular(id);
     const ejecutarAnulacion = async () => { try { await orderService.anularOrden(modalAnular); cargarReporte(); setModalAnular(null); } catch (e) { console.error("Error anulando:", e); mostrarNotificacion("Error al anular orden", "error"); } };
     
-    // Cierre de caja enviará el Total en Efectivo real
+    // Cierre de caja
     const ejecutarCierre = async () => {
         try {
-            // Se asume que totalEfectivoUI se calcula antes del return
             await reportService.cerrarCaja({ monto: totalEfectivoUI });
             setModalCierre(false);
             mostrarNotificacion("✅ Cierre de caja realizado exitosamente", "exito");
@@ -204,7 +198,7 @@ export default function Reportes() {
     const validOrders = listaOrdenesSegura.filter(o => o.estado !== 'anulado');
     const listaGastosSegura = datos.listaGastos || [];
     const listaIngresosSegura = datos.listaIngresosExtras || [];
-    const platosDia = datos.platosDia || []; // Asumiendo que vendrán del backend
+    const platosDia = datos.platosDia || [];
 
     const saldoInicialUI = parseFloat(datos.saldoInicial || 0);
     const totalIngresosExtrasUI = parseFloat(datos.totalIngresosExtras || 0);
@@ -233,7 +227,7 @@ export default function Reportes() {
                 <div className="flex gap-2"><button onClick={generarPDF} className="bg-red-600 text-white px-4 py-2 rounded shadow flex items-center gap-2">🖨️ Imprimir PDF</button></div>
             </div>
 
-            {/* DASHBOARD Kpis - REESTRUCTURADO */}
+            {/* DASHBOARD Kpis */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
                 <div className="bg-gray-50 p-4 rounded-lg border col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-gray-500">Saldo Inicial</p><p className="text-xl font-bold">${saldoInicialUI.toFixed(2)}</p></div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-green-600">Ventas Efectivo</p><p className="text-xl font-bold text-green-700">${ventasEfectivoUI.toFixed(2)}</p></div>
@@ -252,9 +246,9 @@ export default function Reportes() {
                 <div className="bg-white rounded-lg shadow-sm border p-5"><h2 className="font-bold text-lg mb-4 text-teal-600">💰 Ingresos Extras</h2><form onSubmit={registrarIngreso} className="flex gap-2 mb-4"><input type="text" placeholder="Ej.: Inyección de capital..." className="flex-1 p-2 border rounded text-sm" value={descIngreso} onChange={e => setDescIngreso(e.target.value)} required /><input type="number" step="0.01" placeholder="$" className="w-24 p-2 border rounded text-sm" value={montoIngreso} onChange={e => setMontoIngreso(e.target.value)} required /><button type="submit" className="bg-teal-500 text-white px-3 rounded font-bold">+</button></form><div className="overflow-y-auto max-h-40"><table className="w-full text-sm"><tbody className="divide-y">{listaIngresosSegura.length > 0 ? (listaIngresosSegura.map(i => (<tr key={i.id}><td className="py-2">{i.descripcion}</td><td className="py-2 text-right font-bold text-teal-600">+${(i.monto || 0).toFixed(2)}</td><td className="py-2 text-right"><button onClick={() => eliminarIngreso(i.id)} className="text-gray-300 hover:text-red-500">×</button></td></tr>))) : (<tr><td colSpan="3" className="text-center text-gray-400 py-2">Sin ingresos extras</td></tr>)}</tbody></table></div></div>
             </div>
 
-            {/* PLATOS DEL DÍA (NUEVA ESTRUCTURA) */}
+            {/* PLATOS DEL DÍA (SIN COLUMNA DIFERENCIA) */}
             <div className="bg-white rounded-lg shadow-sm border p-5 mb-6 overflow-x-auto">
-                <h2 className="font-bold text-lg mb-4 text-orange-600">🍲 Platos del Día (Cuadre de Inventario)</h2>
+                <h2 className="font-bold text-lg mb-4 text-orange-600">🍲 Platos del Día (Movimiento de Inventario)</h2>
                 <table className="w-full text-sm text-center">
                     <thead className="bg-orange-50 text-orange-800">
                         <tr>
@@ -263,28 +257,19 @@ export default function Reportes() {
                             <th className="py-2 px-4">Vendidos</th>
                             <th className="py-2 px-4">Consumo Personal</th>
                             <th className="py-2 px-4">Final</th>
-                            <th className="py-2 px-4">Diferencia</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
-                        {platosDia.length > 0 ? platosDia.map((p, idx) => {
-                            const inicial = p.inicial || 0; const vendidos = p.vendidos || 0;
-                            const consumo = p.consumo || 0; const final = p.final || 0;
-                            const diferencia = inicial - vendidos - consumo - final;
-                            return (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="py-2 px-4 text-left font-medium">{p.nombre}</td>
-                                    <td className="py-2 px-4">{inicial}</td>
-                                    <td className="py-2 px-4 text-blue-600 font-bold">{vendidos}</td>
-                                    <td className="py-2 px-4 text-gray-500">{consumo}</td>
-                                    <td className="py-2 px-4">{final}</td>
-                                    <td className={`py-2 px-4 font-bold ${diferencia === 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {diferencia}
-                                    </td>
-                                </tr>
-                            )
-                        }) : (
-                            <tr><td colSpan="6" className="py-4 text-gray-400 italic">No hay datos de platos del día configurados desde el sistema/backend.</td></tr>
+                        {platosDia.length > 0 ? platosDia.map((p, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                                <td className="py-2 px-4 text-left font-medium">{p.nombre}</td>
+                                <td className="py-2 px-4">{p.inicial || 0}</td>
+                                <td className="py-2 px-4 text-blue-600 font-bold">{p.vendidos || 0}</td>
+                                <td className="py-2 px-4 text-gray-500">{p.consumo || 0}</td>
+                                <td className="py-2 px-4 font-bold">{p.final || 0}</td>
+                            </tr>
+                        )) : (
+                            <tr><td colSpan="5" className="py-4 text-gray-400 italic">No hay movimientos registrados hoy.</td></tr>
                         )}
                     </tbody>
                 </table>
