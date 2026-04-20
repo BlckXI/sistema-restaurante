@@ -23,7 +23,15 @@ export default function Repartidor() {
         }
     });
 
-    return () => socketClient.off('orden_lista');
+    // Escuchar cuando otro repartidor entrega una orden
+    socketClient.on('orden_entregada', () => {
+        cargarDatos(); 
+    });
+
+    return () => {
+        socketClient.off('orden_lista');
+        socketClient.off('orden_entregada'); // Limpiamos el nuevo listener
+    };
   }, []);
 
   const cargarDatos = async () => {

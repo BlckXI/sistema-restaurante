@@ -35,7 +35,7 @@ function App() {
   const cerrarSesion = async () => {
     try {
         // Intentamos cerrar en el servidor
-        const { error } = await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
         if (error) console.warn("Aviso al cerrar sesión:", error.message);
     } catch (error) {
         console.error("Error crítico cerrando sesión:", error);
