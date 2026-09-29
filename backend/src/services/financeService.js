@@ -2,83 +2,86 @@ const supabase = require('../config/supabase');
 const { getRangoDiario } = require('../utils/dateUtils');
 
 const calcularFinanzasDia = async () => {
-    const { inicio, fin, fechaStr } = getRangoDiario();
+    try {
+        const { inicio, fin, fechaStr } = getRangoDiario();
 
-    // 1. Saldo Inicial (Cierre del día anterior registrado)
-    const { data: ultimoCierre } = await supabase.from('cierres')
-        .select('monto_final')
-        .lt('fecha', fechaStr)
-        .order('fecha', { ascending: false })
-        .limit(1)
-        .single();
-    const saldoInicial = ultimoCierre ? ultimoCierre.monto_final : 0;
+        // 1. Saldo Inicial
+        const { data: ultimoCierre, error: errorCierre } = await supabase.from('cierres')
+            .select('monto_final')
+            .lt('fecha', fechaStr)
+            .order('fecha', { ascending: false })
+            .limit(1)
+            .single();
 
-    // 2. Consultar datos usando el rango UTC
-    const { data: ordenes } = await supabase.from('ordenes').select('*').gte('created_at', inicio).lt('created_at', fin);
-    const { data: gastos } = await supabase.from('gastos').select('*').gte('created_at', inicio).lt('created_at', fin);
-    const { data: extras } = await supabase.from('ingresos_extras').select('*').gte('created_at', inicio).lt('created_at', fin);
-    const { data: platos } = await supabase.from('platos').select('nombre, stock, id_padre'); // Necesario para la tabla nueva
+        // Justificación: El código PGRST116 ocurre al no encontrar registros (ej. primer día de uso). No es un error crítico.
+        if (errorCierre && errorCierre.code !== 'PGRST116') {
+            console.error('Error al obtener el saldo inicial:', errorCierre);
+            throw new Error('Fallo al obtener el saldo inicial de la base de datos.');
+        }
 
-    let ventasEfectivo = 0, ventasTransferencia = 0, tGastos = 0, tExtras = 0, anulado = 0, validas = 0, domiciliosCount = 0;
-    const conteoVentas = {};
-    const conteoPersonal = {};
+        const saldoInicial = ultimoCierre ? ultimoCierre.monto_final : 0;
 
-    if(ordenes) {
-        ordenes.forEach(o => {
-            const estadoNormalizado = o.estado ? o.estado.toLowerCase().trim() : 'pendiente';
+        // 2. Consultas concurrentes (Rendimiento)
+        const [reqOrdenes, reqGastos, reqExtras, reqPlatos] = await Promise.all([
+            supabase.from('ordenes').select('*').gte('created_at', inicio).lt('created_at', fin),
+            supabase.from('gastos').select('*').gte('created_at', inicio).lt('created_at', fin),
+            supabase.from('ingresos_extras').select('*').gte('created_at', inicio).lt('created_at', fin),
+            supabase.from('platos').select('nombre, stock, id_padre')
+        ]);
+
+        const ordenes = reqOrdenes.data || [];
+        const gastos = reqGastos.data || [];
+        const extras = reqExtras.data || [];
+        const platos = reqPlatos.data || [];
+
+        let ventasEfectivo = 0, ventasTransferencia = 0, totalGastos = 0, totalExtras = 0, totalAnulado = 0, validas = 0;
+        const conteoVentas = {};
+        const conteoPersonal = {};
+
+        ordenes.forEach(orden => {
+            const estadoNormalizado = orden.estado ? orden.estado.toLowerCase().trim() : 'pendiente';
 
             if (estadoNormalizado === 'anulado') {
-                anulado += (o.total || 0);
+                totalAnulado += (orden.total || 0);
             } else {
-                // Sumar ingresos separando por método de pago
-                if (o.tipo_entrega !== 'personal') {
-                    if (o.metodo_pago === 'transferencia') {
-                        ventasTransferencia += o.total;
+                if (orden.tipo_entrega !== 'personal') {
+                    if (orden.metodo_pago === 'transferencia') {
+                        ventasTransferencia += orden.total;
                     } else {
-                        ventasEfectivo += o.total;
+                        ventasEfectivo += orden.total;
                     }
                 }
                 
-                // Contar domicilios para el recargo
-                if (o.tipo_entrega === 'domicilio') domiciliosCount++;
                 validas++;
 
-                // Separar ventas regulares vs consumo personal para los Platos del Día
-                if (o.detalles && Array.isArray(o.detalles)) {
-                    o.detalles.forEach(i => {
-                        if (o.tipo_entrega === 'personal') {
-                            conteoPersonal[i.nombre] = (conteoPersonal[i.nombre] || 0) + i.cantidad;
+                if (orden.detalles && Array.isArray(orden.detalles)) {
+                    orden.detalles.forEach(item => {
+                        if (orden.tipo_entrega === 'personal') {
+                            conteoPersonal[item.nombre] = (conteoPersonal[item.nombre] || 0) + item.cantidad;
                         } else {
-                            conteoVentas[i.nombre] = (conteoVentas[i.nombre] || 0) + i.cantidad;
+                            conteoVentas[item.nombre] = (conteoVentas[item.nombre] || 0) + item.cantidad;
                         }
                     });
                 }
             }
         });
-    }
 
-    if(gastos) gastos.forEach(g => tGastos += g.monto);
-    if(extras) extras.forEach(e => tExtras += e.monto);
+        gastos.forEach(gasto => { totalGastos += gasto.monto; });
+        extras.forEach(extra => { totalExtras += extra.monto; });
 
-    // NUEVA LÓGICA CONTABLE (Solo efectivo físico)
-    const dineroEnCaja = saldoInicial + ventasEfectivo + tExtras + totalDomicilios - tGastos;
+        // Lógica contable corregida (Responsabilidad Única)
+        const dineroEnCaja = saldoInicial + ventasEfectivo + totalExtras - totalGastos;
 
-    // 3. Construir arreglo para "Platos del Día"
-    const platosDia = [];
-    if (platos) {
-        // Filtramos para mostrar solo los platos principales (ignoramos sub-porciones si tienen id_padre)
-        platos.filter(p => !p.id_padre).forEach(p => {
-            const vendidos = conteoVentas[p.nombre] || 0;
-            const consumo = conteoPersonal[p.nombre] || 0;
-            const final = p.stock || 0;
-            
-            // Fórmula inversa: si al final tengo X, y vendí Y, entonces empecé con X+Y
+        const platosDia = [];
+        platos.filter(plato => !plato.id_padre).forEach(plato => {
+            const vendidos = conteoVentas[plato.nombre] || 0;
+            const consumo = conteoPersonal[plato.nombre] || 0;
+            const final = plato.stock || 0;
             const inicial = final + vendidos + consumo;
 
-            // Solo enviar si hubo movimiento o si hay stock
             if (inicial > 0 || vendidos > 0 || consumo > 0) {
                 platosDia.push({
-                    nombre: p.nombre,
+                    nombre: plato.nombre,
                     inicial,
                     vendidos,
                     consumo,
@@ -86,24 +89,29 @@ const calcularFinanzasDia = async () => {
                 });
             }
         });
-    }
 
-    return {
-        saldoInicial, 
-        ventas: ventasEfectivo + ventasTransferencia, // Se envía total para info general
-        ventasEfectivo,
-        ventasTransferencia,
-        tGastos, 
-        tExtras, 
-        dineroEnCaja, 
-        anulado, 
-        validas, 
-        platosDia, // <--- Nueva data inyectada
-        ordenes: ordenes || [], 
-        gastos: gastos || [], 
-        extras: extras || [], 
-        fechaStr
-    };
+        return {
+            saldoInicial, 
+            ventas: ventasEfectivo + ventasTransferencia, 
+            ventasEfectivo,
+            ventasTransferencia,
+            tGastos: totalGastos, // Retrocompatibilidad
+            totalGastos,          // Nueva nomenclatura exacta para Reportes.jsx
+            tExtras: totalExtras, // Retrocompatibilidad
+            totalIngresosExtras: totalExtras, // Nueva nomenclatura exacta para Reportes.jsx
+            dineroEnCaja, 
+            anulado: totalAnulado, 
+            validas, 
+            platosDia, 
+            ordenes, 
+            gastos, 
+            extras, 
+            fechaStr
+        };
+    } catch (error) {
+        console.error('Error durante la ejecucion de calcularFinanzasDia:', error);
+        throw error;
+    }
 };
 
 module.exports = { calcularFinanzasDia };
