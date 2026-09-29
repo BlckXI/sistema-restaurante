@@ -53,7 +53,7 @@ export default function Cocina() {
       const { data } = await orderService.getPendientes();
       setOrdenes(ordenarPedidos(data || [])); 
     } catch (e) { 
-      console.log("❌ Error cargando órdenes:", e);
+      console.log("Error cargando órdenes:", e);
     }
   };
 

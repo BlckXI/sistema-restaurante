@@ -55,7 +55,7 @@ export default function Reportes() {
     // --- GENERACIÓN DE PDF FINAL ---
     const generarPDF = async () => {
         if (!datos) { mostrarNotificacion("No hay datos para generar PDF", "error"); return; }
-        mostrarNotificacion("⏳ Generando PDF...", "info");
+        mostrarNotificacion("Generando PDF...", "info");
 
         try {
             const doc = new jsPDF();
@@ -84,7 +84,7 @@ export default function Reportes() {
 
             // Domicilios
             const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
-            const totalDomicilios = pedidosDomicilio * 0.50;
+            const totalDomicilios = pedidosDomicilio * 1.00; // $1 por domicilio
 
             // Totales Finales
             const totalBanco = ventasTransferencia;

@@ -27,4 +27,4 @@ app.use('/', require('./src/routes/reportRoutes'));
 app.use('/repartidor', require('./src/routes/deliveryRoutes'));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`✅ Servidor ONLINE en puerto ${PORT}`); });
+server.listen(PORT, () => { console.log(`Servidor ONLINE en puerto ${PORT}`); });

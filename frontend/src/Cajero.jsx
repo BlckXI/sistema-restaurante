@@ -232,7 +232,7 @@ export default function Cajero() {
     }
     setEnviando(true);
 
-    const costoEnvio = (esDomicilio && !esExtra && !esPersonal) ? 0.50 : 0;
+    const costoEnvio = (esDomicilio && !esExtra && !esPersonal) ? 1.00 : 0;
     const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
     const nombreFinal = esExtra ? `${cliente} (EXTRA)` : cliente;
 
@@ -288,7 +288,7 @@ export default function Cajero() {
   };
 
   const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-  const total = esPersonal ? 0 : (subtotal + ((esDomicilio && !esExtra) ? 0.50 : 0));
+  const total = esPersonal ? 0 : (subtotal + ((esDomicilio && !esExtra) ? 1.00 : 0));
 
   return (
     <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-80px)] relative">
@@ -386,7 +386,7 @@ export default function Cajero() {
             <div className={`p-3 rounded border transition-colors ${esDomicilio ? 'bg-orange-50 border-orange-300' : 'bg-white border-gray-200'}`}>
                 <div className="flex items-center gap-2 cursor-pointer" onClick={toggleDomicilio}>
                     <input type="checkbox" checked={esDomicilio} onChange={toggleDomicilio} className="w-5 h-5 accent-orange-500 cursor-pointer"/>
-                    <span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>🛵 Domicilio (+$0.50)</span>
+                    <span className={`font-bold ${esDomicilio ? 'text-orange-700' : 'text-gray-600'}`}>🛵 Domicilio (+$1.00)</span>
                 </div>
                 {esDomicilio && (
                     <div className="mt-3 space-y-2 animate-fade-in-down pl-7">
@@ -450,7 +450,7 @@ export default function Cajero() {
 
         <div className="space-y-1 text-right mb-4 pt-2 border-t">
           {!esPersonal && <p className="text-gray-500 text-sm">Subtotal: ${subtotal.toFixed(2)}</p>}
-          {esDomicilio && !esExtra && !esPersonal && <p className="text-orange-600 text-sm">+ Envío: $0.50</p>}
+          {esDomicilio && !esExtra && !esPersonal && <p className="text-orange-600 text-sm">+ Envío: $1.00</p>}
           {esPersonal && <p className="text-red-600 font-bold text-sm">✓ CONSUMO PERSONAL (GRATIS)</p>}
           <p className="text-3xl font-bold text-gray-800">${total.toFixed(2)}</p>
         </div>
