@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { reportService } from './api/reportService';
 import { orderService } from './api/orderService';
 import { socketClient } from './api/socketService';
+import { COSTO_DOMICILIO } from './api/config';
 
 export default function Reportes() {
     const [datos, setDatos] = useState(null);
@@ -78,17 +79,23 @@ export default function Reportes() {
                 .filter(o => o.metodo_pago === 'transferencia')
                 .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
 
-            const ventasEfectivo = validOrders
+            const ingresosTotalesEfectivo = validOrders
                 .filter(o => o.metodo_pago !== 'transferencia')
                 .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
 
             // Domicilios
             const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
-            const totalDomicilios = pedidosDomicilio * 1.00; // $1 por domicilio
+            const pedidosDomicilioEfectivo = validOrders.filter(o => o.tipo_entrega === 'domicilio' && o.metodo_pago !== 'transferencia').length;
+            
+            const totalDomicilios = pedidosDomicilio * COSTO_DOMICILIO;
+            const totalDomiciliosEfectivo = pedidosDomicilioEfectivo * COSTO_DOMICILIO;
+
+            // Separamos la venta pura de comida del servicio de envío
+            const ventasEfectivo = ingresosTotalesEfectivo - totalDomiciliosEfectivo;
 
             // Totales Finales
             const totalBanco = ventasTransferencia;
-            const totalEfectivo = saldoInicial + ventasEfectivo + totalIngresosExtras + totalDomicilios - totalGastos;
+            const totalEfectivo = saldoInicial + ventasEfectivo + totalIngresosExtras + totalDomiciliosEfectivo - totalGastos;
 
             // ENCABEZADO PDF
             doc.setFontSize(22); doc.setTextColor(41, 128, 185); doc.text("REPORTE FINANCIERO", 14, 20);
@@ -193,7 +200,7 @@ export default function Reportes() {
     if (cargando) return <div className="p-10 text-center">Cargando Reportes...</div>;
     if (!datos) return <div className="p-10 text-center text-red-500">Error: No se recibieron datos del servidor.</div>;
 
-    // --- CÁLCULOS PARA LA INTERFAZ ---
+// --- CÁLCULOS PARA LA INTERFAZ ---
     const listaOrdenesSegura = datos.listaOrdenes || [];
     const validOrders = listaOrdenesSegura.filter(o => o.estado !== 'anulado');
     const listaGastosSegura = datos.listaGastos || [];
@@ -205,14 +212,23 @@ export default function Reportes() {
     const totalGastosUI = parseFloat(datos.totalGastos || 0);
 
     const ventasTransferenciaUI = validOrders.filter(o => o.metodo_pago === 'transferencia').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
-    const ventasEfectivoUI = validOrders.filter(o => o.metodo_pago !== 'transferencia').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
     const cantidadTransferencias = validOrders.filter(o => o.metodo_pago === 'transferencia').length;
 
+    // Calculamos el total real ingresado en efectivo (ya incluye domicilios pagados en efectivo)
+    const ingresosTotalesEfectivoUI = validOrders.filter(o => o.metodo_pago !== 'transferencia').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    
+    // Contamos domicilios
     const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
-    const totalDomiciliosUI = pedidosDomicilio * 1.00;
+    const pedidosDomicilioEfectivo = validOrders.filter(o => o.tipo_entrega === 'domicilio' && o.metodo_pago !== 'transferencia').length;
+    
+    const totalDomiciliosUI = pedidosDomicilio * COSTO_DOMICILIO; 
+    const totalDomiciliosEfectivoUI = pedidosDomicilioEfectivo * COSTO_DOMICILIO;
+
+    // Restamos el envío a las ventas en efectivo para mostrar el valor limpio de comida y evitar duplicidad en la suma visual
+    const ventasEfectivoUI = ingresosTotalesEfectivoUI - totalDomiciliosEfectivoUI;
 
     const totalBancoUI = ventasTransferenciaUI;
-    const totalEfectivoUI = saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosUI - totalGastosUI;
+    const totalEfectivoUI = saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosEfectivoUI - totalGastosUI;
 
     return (
         <div className="p-4 md:p-8 bg-gray-100 min-h-screen">

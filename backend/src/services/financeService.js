@@ -61,7 +61,6 @@ const calcularFinanzasDia = async () => {
     if(extras) extras.forEach(e => tExtras += e.monto);
 
     // NUEVA LÓGICA CONTABLE (Solo efectivo físico)
-    const totalDomicilios = domiciliosCount * 1.00;
     const dineroEnCaja = saldoInicial + ventasEfectivo + tExtras + totalDomicilios - tGastos;
 
     // 3. Construir arreglo para "Platos del Día"
