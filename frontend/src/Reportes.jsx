@@ -209,7 +209,7 @@ export default function Reportes() {
     const cantidadTransferencias = validOrders.filter(o => o.metodo_pago === 'transferencia').length;
 
     const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
-    const totalDomiciliosUI = pedidosDomicilio * 0.50;
+    const totalDomiciliosUI = pedidosDomicilio * 1.00;
 
     const totalBancoUI = ventasTransferenciaUI;
     const totalEfectivoUI = saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosUI - totalGastosUI;
@@ -232,7 +232,7 @@ export default function Reportes() {
                 <div className="bg-gray-50 p-4 rounded-lg border col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-gray-500">Saldo Inicial</p><p className="text-xl font-bold">${saldoInicialUI.toFixed(2)}</p></div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-green-600">Ventas Efectivo</p><p className="text-xl font-bold text-green-700">${ventasEfectivoUI.toFixed(2)}</p></div>
                 <div className="bg-teal-50 p-4 rounded-lg border border-teal-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-teal-600">Ingresos Extras</p><p className="text-xl font-bold text-teal-700">${totalIngresosExtrasUI.toFixed(2)}</p></div>
-                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-yellow-600">Total Domicilios</p><p className="text-xl font-bold text-yellow-700">${totalDomiciliosUI.toFixed(2)}</p><p className="text-[10px] text-yellow-600">{pedidosDomicilio} pedidos x $0.50</p></div>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-yellow-600">Total Domicilios</p><p className="text-xl font-bold text-yellow-700">${totalDomiciliosUI.toFixed(2)}</p><p className="text-[10px] text-yellow-600">{pedidosDomicilio} pedidos x $1.00</p></div>
                 <div className="bg-red-50 p-4 rounded-lg border border-red-200 col-span-2 lg:col-span-1"><p className="text-xs font-bold uppercase text-red-600">Gastos</p><p className="text-xl font-bold text-red-700">-${totalGastosUI.toFixed(2)}</p></div>
                 
                 {/* BANCO VS EFECTIVO */}

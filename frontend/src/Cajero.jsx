@@ -363,7 +363,7 @@ export default function Cajero() {
       <div className="w-full md:w-1/3 bg-gray-50 p-4 rounded shadow border border-gray-200 flex flex-col h-full">
         <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
             Nueva Orden
-            <button onClick={() => setModalClientes(true)} className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-200">👥 Activos</button>
+            <button onClick={() => setModalClientes(true)} className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-200">Clientes Activos</button>
         </h2>
         {esExtra && <div className="mb-2 bg-yellow-100 border border-yellow-300 text-yellow-800 px-2 py-1 rounded text-xs flex justify-between"><span>⚡ Modo: <strong>Extra</strong></span><button onClick={() => {setEsExtra(false); setCliente('');}} className="text-yellow-600 font-bold">×</button></div>}
 
