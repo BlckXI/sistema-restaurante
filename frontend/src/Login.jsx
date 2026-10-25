@@ -47,9 +47,15 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-bold text-slate-900 mb-1">Correo</label>
+            <label htmlFor="login-email" className="block text-sm font-bold text-slate-900 mb-1">
+              Correo
+            </label>
             <input
+              id="login-email"
+              name="email"
               type="email"
+              autoComplete="username"
+              required
               placeholder="admin@restaurante.com"
               className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={email}
@@ -58,9 +64,15 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-slate-900 mb-1">Contraseña</label>
+            <label htmlFor="login-password" className="block text-sm font-bold text-slate-900 mb-1">
+              Contraseña
+            </label>
             <input
+              id="login-password"
+              name="password"
               type="password"
+              autoComplete="current-password"
+              required
               placeholder="••••••••"
               className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={password}
