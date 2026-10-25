@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
@@ -48,11 +49,16 @@ const createApp = (io) => {
     app.use('/', reportRoutes);
     app.use('/repartidor', deliveryRoutes);
 
-    // Archivos estáticos del Frontend compilado
+    // Archivos estáticos del Frontend compilado (cuando se despliega de forma unificada)
     const frontendDistPath = path.join(__dirname, '../../frontend/dist');
-    app.use(express.static(frontendDistPath));
+    const indexHtmlPath = path.join(frontendDistPath, 'index.html');
+    const hasFrontendBuild = fs.existsSync(indexHtmlPath);
 
-    // Fallback SPA para Express 5
+    if (hasFrontendBuild) {
+        app.use(express.static(frontendDistPath));
+    }
+
+    // Fallback SPA o respuesta de salud para despliegues de API independiente (Render)
     app.use((req, res, next) => {
         if (req.method !== 'GET') {
             return next();
@@ -60,7 +66,16 @@ const createApp = (io) => {
         if (req.url.startsWith('/socket.io') || req.originalUrl.startsWith('/socket.io') || res.headersSent) {
             return;
         }
-        res.sendFile(path.join(frontendDistPath, 'index.html'));
+        if (hasFrontendBuild) {
+            return res.sendFile(indexHtmlPath);
+        }
+        if (req.path === '/' || req.path === '/health') {
+            return res.status(200).json({
+                status: 'ok',
+                service: "API Restaurante D' La Casa"
+            });
+        }
+        return res.status(404).json({ error: 'Ruta no encontrada' });
     });
 
     // Middleware de manejo global de errores

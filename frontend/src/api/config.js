@@ -1,6 +1,25 @@
 import axios from 'axios';
 
-export const URL_BACKEND = import.meta.env.VITE_BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+const resolverUrlBackend = () => {
+    const envUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL;
+    if (envUrl) {
+        return envUrl.replace(/\/+$/, '');
+    }
+
+    if (typeof window !== 'undefined') {
+        const { hostname, origin, port } = window.location;
+        if (hostname.endsWith('.run.app') || port === '3000') {
+            return origin;
+        }
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return 'http://localhost:3000';
+        }
+    }
+
+    return 'https://api-restaurante-yawj.onrender.com';
+};
+
+export const URL_BACKEND = resolverUrlBackend();
 
 export const COSTO_DOMICILIO = 1.00;
 
