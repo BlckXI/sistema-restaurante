@@ -1,5 +1,5 @@
 const menuService = require('../services/menuService');
-const { esTextoValido, esMontoPositivoValido, esEnteroNoNegativoValido } = require('../utils/validators');
+const { esNombrePlatoValido, esMontoPositivoValido, esEnteroNoNegativoValido } = require('../utils/validators');
 
 const obtenerPlatos = async (req, res, next) => {
     try {
@@ -13,8 +13,8 @@ const obtenerPlatos = async (req, res, next) => {
 const crearPlato = async (req, res, next) => {
     try {
         const { nombre, precio, stock, categoria, id_padre } = req.body;
-        if (!esTextoValido(nombre)) {
-            return res.status(400).json({ error: 'El nombre del plato solo debe contener texto' });
+        if (!esNombrePlatoValido(nombre)) {
+            return res.status(400).json({ error: 'El nombre del plato no es válido' });
         }
         if (!esMontoPositivoValido(precio)) {
             return res.status(400).json({ error: 'El precio debe ser un valor positivo con máximo 2 decimales' });
@@ -36,13 +36,13 @@ const actualizarPlato = async (req, res, next) => {
         const { id } = req.params;
         const { nombre, precio, stock, categoria, id_padre, motivo_auditoria } = req.body;
 
-        if (nombre !== undefined && !esTextoValido(nombre)) {
-            return res.status(400).json({ error: 'El nombre del plato solo debe contener texto' });
+        if (nombre !== undefined && !esNombrePlatoValido(nombre)) {
+            return res.status(400).json({ error: 'El nombre del plato no es válido' });
         }
         if (precio !== undefined && !esMontoPositivoValido(precio)) {
             return res.status(400).json({ error: 'El precio debe ser un valor positivo con máximo 2 decimales' });
         }
-        if (stock !== undefined && !id_padre && !esEnteroNoNegativoValido(stock)) {
+        if (stock !== undefined && !esEnteroNoNegativoValido(stock)) {
             return res.status(400).json({ error: 'El stock debe ser un número entero no negativo' });
         }
 

@@ -42,6 +42,7 @@ function formatearFechaCompleta(fechaIso) {
 
 const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
     platos,
+    todosLosPlatos,
     categorias,
     busqueda,
     onBusquedaChange,
@@ -61,23 +62,38 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
     // Estado para tooltip de auditoría activo (ID del plato)
     const [auditoriaVisibleId, setAuditoriaVisibleId] = useState(null);
 
-    // Contadores para pestañas de filtros rápidos
+    const listaBaseConteos = Array.isArray(todosLosPlatos) ? todosLosPlatos : platos;
+
+    // Contadores para pestañas de filtros rápidos (alineados con la visibilidad en Caja)
     const conteos = {
-        todos: platos.length,
-        disponibles: platos.filter(p => !p.id_padre && p.stock >= 5).length,
-        stockBajo: platos.filter(p => !p.id_padre && p.stock > 0 && p.stock < 5).length,
-        agotados: platos.filter(p => !p.id_padre && p.stock === 0).length,
-        porciones: platos.filter(p => p.id_padre).length
+        todos: listaBaseConteos.length,
+        disponibles: listaBaseConteos.filter(p => (p.stockEfectivo ?? p.stock) > 0).length,
+        stockBajo: listaBaseConteos.filter(p => {
+            const st = p.stockEfectivo ?? p.stock;
+            return st > 0 && st < 5;
+        }).length,
+        agotados: listaBaseConteos.filter(p => (p.stockEfectivo ?? p.stock) === 0).length,
+        porciones: listaBaseConteos.filter(p => Boolean(p.id_padre)).length
     };
 
     const iniciarEdicionInline = (plato, campo) => {
-        if (campo === 'stock' && plato.id_padre) return; // Porciones no editan stock individual
+        const stockActual = plato.stockEfectivo ?? plato.stock ?? 0;
         setEdicionInline({
             id: plato.id,
             campo,
-            valorOriginal: campo === 'precio' ? plato.precio : plato.stock,
-            valorActual: campo === 'precio' ? String(plato.precio) : String(plato.stock)
+            valorOriginal: campo === 'precio' ? plato.precio : stockActual,
+            valorActual: campo === 'precio' ? String(plato.precio) : String(stockActual)
         });
+    };
+
+    const ponerPlatoEnCero = async (plato) => {
+        setGuardandoInlineId(plato.id);
+        try {
+            await onGuardarInline(plato, 'stock', 0);
+        } finally {
+            setGuardandoInlineId(null);
+            setEdicionInline(null);
+        }
     };
 
     const cancelarEdicionInline = () => {
@@ -88,7 +104,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
         if (!edicionInline || edicionInline.id !== plato.id) return;
         const { campo, valorActual, valorOriginal } = edicionInline;
 
-        if (String(valorActual).trim() === String(valorOriginal)) {
+        if (String(valorActual).trim() === String(valorOriginal) && !plato.esHuerfano) {
             cancelarEdicionInline();
             return;
         }
@@ -125,10 +141,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
     };
 
     const obtenerEstiloFila = (plato) => {
+        const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
         if (idEdicion === plato.id) return 'bg-amber-100/70 border-l-4 border-l-amber-500';
-        if (plato.id_padre) return 'bg-white hover:bg-slate-50';
-        if (plato.stock === 0) return 'bg-red-50/70 hover:bg-red-50/90 border-l-4 border-l-red-500';
-        if (plato.stock < 5) return 'bg-amber-50/70 hover:bg-amber-50/90 border-l-4 border-l-amber-400';
+        if (stockReal === 0) return 'bg-red-50/70 hover:bg-red-50/90 border-l-4 border-l-red-500';
+        if (stockReal < 5) return 'bg-amber-50/70 hover:bg-amber-50/90 border-l-4 border-l-amber-400';
         return 'bg-white hover:bg-slate-50';
     };
 
@@ -254,8 +270,9 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <div className="p-8 text-center text-slate-500 text-sm">No se encontraron platos con los filtros aplicados.</div>
                 ) : (
                     platos.map(plato => {
-                        const esAgotado = !plato.id_padre && plato.stock === 0;
-                        const esBajo = !plato.id_padre && plato.stock > 0 && plato.stock < 5;
+                        const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
+                        const esAgotado = stockReal === 0;
+                        const esBajo = stockReal > 0 && stockReal < 5;
                         const editandoPrecio = edicionInline && edicionInline.id === plato.id && edicionInline.campo === 'precio';
                         const editandoStock = edicionInline && edicionInline.id === plato.id && edicionInline.campo === 'stock';
 
@@ -270,7 +287,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             <span>{plato.nombre}</span>
                                             {plato.id_padre && (
                                                 <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-bold border border-sky-200">
-                                                    PORCIÓN
+                                                    {plato.nombrePadre ? `PORCIÓN DE: ${plato.nombrePadre}` : 'PORCIÓN'}
                                                 </span>
                                             )}
                                         </p>
@@ -315,12 +332,8 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
 
                                 {/* STOCK INLINE Y ALERTAS MÓVIL */}
                                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                                    <div className="flex items-center gap-2">
-                                        {plato.id_padre ? (
-                                            <span className="text-xs text-sky-700 bg-sky-50 px-2 py-1 rounded font-medium border border-sky-200">
-                                                Stock compartido con plato principal
-                                            </span>
-                                        ) : editandoStock ? (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {editandoStock ? (
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-bold text-slate-500">Stock:</span>
                                                 <input
@@ -351,10 +364,31 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                 }`}
                                                 title="Toca para editar stock inline"
                                             >
-                                                <span>{esAgotado ? 'AGOTADO (0)' : esBajo ? `Stock Bajo: ${plato.stock}` : `Stock: ${plato.stock}`}</span>
+                                                <span>
+                                                    {plato.id_padre
+                                                        ? `Compartido: ${stockReal}`
+                                                        : esAgotado
+                                                          ? 'AGOTADO (0)'
+                                                          : esBajo
+                                                            ? `Stock Bajo: ${stockReal}`
+                                                            : `Stock: ${stockReal}`}
+                                                </span>
                                                 <span className="text-[10px] opacity-75 font-normal">✎</span>
                                             </button>
                                         )}
+
+                                        {(stockReal > 0 || plato.esHuerfano) && !editandoStock && (
+                                            <button
+                                                type="button"
+                                                onClick={() => ponerPlatoEnCero(plato)}
+                                                disabled={guardandoInlineId === plato.id}
+                                                className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-red-100 text-slate-700 hover:text-red-600 transition min-h-[32px]"
+                                                title="Poner stock en 0 inmediatamente"
+                                            >
+                                                Poner en 0
+                                            </button>
+                                        )}
+
                                         {guardandoInlineId === plato.id && (
                                             <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                                         )}
@@ -404,8 +438,9 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
                         {platos.map(plato => {
-                            const esAgotado = !plato.id_padre && plato.stock === 0;
-                            const esBajo = !plato.id_padre && plato.stock > 0 && plato.stock < 5;
+                            const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
+                            const esAgotado = stockReal === 0;
+                            const esBajo = stockReal > 0 && stockReal < 5;
                             const editandoPrecio = edicionInline && edicionInline.id === plato.id && edicionInline.campo === 'precio';
                             const editandoStock = edicionInline && edicionInline.id === plato.id && edicionInline.campo === 'stock';
                             const viendoAuditoria = auditoriaVisibleId === plato.id;
@@ -416,11 +451,11 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                     className={`transition-colors ${obtenerEstiloFila(plato)}`}
                                 >
                                     <td className="p-3 font-medium text-slate-900">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-bold">{plato.nombre}</span>
                                             {plato.id_padre && (
                                                 <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-bold border border-sky-200">
-                                                    PORCIÓN
+                                                    {plato.nombrePadre ? `PORCIÓN DE: ${plato.nombrePadre}` : 'PORCIÓN'}
                                                 </span>
                                             )}
                                         </div>
@@ -466,47 +501,64 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
 
                                     {/* STOCK INLINE */}
                                     <td className="p-3 whitespace-nowrap">
-                                        {plato.id_padre ? (
-                                            <span className="text-xs text-sky-700 bg-sky-50 px-2.5 py-1 rounded-full font-semibold border border-sky-200">
-                                                Compartido
-                                            </span>
-                                        ) : editandoStock ? (
-                                            <div className="flex items-center gap-1.5">
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    autoFocus
-                                                    className="w-16 px-2 py-1 border-2 border-orange-500 rounded text-center font-bold text-sm outline-none bg-white text-slate-900 shadow-sm"
-                                                    value={edicionInline.valorActual}
-                                                    onChange={e => {
-                                                        if (esEntradaEnteroPositivo(e.target.value)) {
-                                                            setEdicionInline(prev => ({ ...prev, valorActual: e.target.value }));
-                                                        }
-                                                    }}
-                                                    onBlur={() => confirmarEdicionInline(plato)}
-                                                    onKeyDown={e => handleKeyDownInline(e, plato)}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => iniciarEdicionInline(plato, 'stock')}
-                                                className={`group inline-flex items-center gap-1.5 font-bold px-2.5 py-1 rounded-full text-xs text-white transition ${
-                                                    esAgotado
-                                                        ? 'bg-red-500 hover:bg-red-600'
-                                                        : esBajo
-                                                          ? 'bg-amber-500 hover:bg-amber-600'
-                                                          : 'bg-emerald-500 hover:bg-emerald-600'
-                                                }`}
-                                                title="Haz clic para modificar el stock de forma rápida"
-                                            >
-                                                <span>{esAgotado ? 'AGOTADO' : plato.stock}</span>
-                                                <span className="opacity-70 group-hover:opacity-100 text-[10px]">✎</span>
-                                            </button>
-                                        )}
-                                        {guardandoInlineId === plato.id && (
-                                            <span className="ml-1.5 inline-block w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin align-middle" />
-                                        )}
+                                        <div className="inline-flex items-center gap-1.5">
+                                            {editandoStock ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        autoFocus
+                                                        className="w-16 px-2 py-1 border-2 border-orange-500 rounded text-center font-bold text-sm outline-none bg-white text-slate-900 shadow-sm"
+                                                        value={edicionInline.valorActual}
+                                                        onChange={e => {
+                                                            if (esEntradaEnteroPositivo(e.target.value)) {
+                                                                setEdicionInline(prev => ({ ...prev, valorActual: e.target.value }));
+                                                            }
+                                                        }}
+                                                        onBlur={() => confirmarEdicionInline(plato)}
+                                                        onKeyDown={e => handleKeyDownInline(e, plato)}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => iniciarEdicionInline(plato, 'stock')}
+                                                    className={`group inline-flex items-center gap-1.5 font-bold px-2.5 py-1 rounded-full text-xs text-white transition ${
+                                                        esAgotado
+                                                            ? 'bg-red-500 hover:bg-red-600'
+                                                            : esBajo
+                                                              ? 'bg-amber-500 hover:bg-amber-600'
+                                                              : 'bg-emerald-500 hover:bg-emerald-600'
+                                                    }`}
+                                                    title="Haz clic para modificar el stock de forma rápida"
+                                                >
+                                                    <span>
+                                                        {plato.id_padre
+                                                            ? `Compartido: ${stockReal}`
+                                                            : esAgotado
+                                                              ? 'AGOTADO'
+                                                              : stockReal}
+                                                    </span>
+                                                    <span className="opacity-70 group-hover:opacity-100 text-[10px]">✎</span>
+                                                </button>
+                                            )}
+
+                                            {(stockReal > 0 || plato.esHuerfano) && !editandoStock && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => ponerPlatoEnCero(plato)}
+                                                    disabled={guardandoInlineId === plato.id}
+                                                    className="text-[11px] font-bold px-2 py-1 rounded bg-slate-200 hover:bg-red-100 text-slate-700 hover:text-red-600 transition"
+                                                    title="Poner stock en 0 inmediatamente"
+                                                >
+                                                    Poner en 0
+                                                </button>
+                                            )}
+
+                                            {guardandoInlineId === plato.id && (
+                                                <span className="inline-block w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin align-middle" />
+                                            )}
+                                        </div>
                                     </td>
 
                                     {/* AUDITORÍA Y TRAZABILIDAD */}
@@ -542,7 +594,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                     <strong>Fecha:</strong> {formatearFechaCompleta(plato.updated_at)}
                                                 </p>
                                                 <p className="text-[11px] text-slate-400 mt-1">
-                                                    Stock registrado: {plato.stock} | Precio: ${plato.precio.toFixed(2)}
+                                                    Stock efectivo: {stockReal} | Precio: ${plato.precio.toFixed(2)}
                                                 </p>
                                             </div>
                                         )}

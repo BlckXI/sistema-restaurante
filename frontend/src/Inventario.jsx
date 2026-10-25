@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { menuService } from './api/menuService';
 import { socketClient } from './api/socketService';
 import {
-    esSoloTexto,
+    esNombrePlato,
     esEntradaMontoPositivo,
     esMontoPositivoValido,
     esEntradaEnteroPositivo,
@@ -41,7 +41,7 @@ export default function Inventario() {
 
     const mostrarNotificacion = useCallback((mensaje, tipo) => {
         setNotificacion({ mensaje, tipo });
-        setTimeout(() => setNotificacion(null), 3000);
+        setTimeout(() => setNotificacion(null), 3500);
     }, []);
 
     const cargarDatos = useCallback(async () => {
@@ -73,44 +73,59 @@ export default function Inventario() {
         };
     }, [cargarDatos]);
 
-    const listaPlatosSegura = useMemo(() => (Array.isArray(platos) ? platos : []), [platos]);
+    const listaPlatosEnriquecida = useMemo(() => {
+        const base = Array.isArray(platos) ? platos : [];
+        const mapaPorId = new Map(base.map(p => [Number(p.id), p]));
+
+        return base.map(plato => {
+            const padre = plato.id_padre ? mapaPorId.get(Number(plato.id_padre)) : null;
+            const esHuerfano = Boolean(plato.id_padre && !padre);
+            const stockEfectivo = padre ? Number(padre.stock || 0) : Number(plato.stock || 0);
+            return {
+                ...plato,
+                stockEfectivo,
+                nombrePadre: padre ? padre.nombre : null,
+                esHuerfano
+            };
+        });
+    }, [platos]);
 
     const platosFiltrados = useMemo(
         () =>
-            listaPlatosSegura.filter(plato => {
+            listaPlatosEnriquecida.filter(plato => {
                 const coincideTexto = (plato.nombre || '').toLowerCase().includes(busqueda.toLowerCase());
                 const coincideCategoria = filtroCategoria === '' || plato.categoria === filtroCategoria;
 
                 let coincideEstado = true;
                 if (filtroEstado === 'disponibles') {
-                    coincideEstado = !plato.id_padre && plato.stock >= 5;
+                    coincideEstado = plato.stockEfectivo > 0;
                 } else if (filtroEstado === 'stockBajo') {
-                    coincideEstado = !plato.id_padre && plato.stock > 0 && plato.stock < 5;
+                    coincideEstado = plato.stockEfectivo > 0 && plato.stockEfectivo < 5;
                 } else if (filtroEstado === 'agotados') {
-                    coincideEstado = !plato.id_padre && plato.stock === 0;
+                    coincideEstado = plato.stockEfectivo === 0;
                 } else if (filtroEstado === 'porciones') {
-                    coincideEstado = !!plato.id_padre;
+                    coincideEstado = Boolean(plato.id_padre);
                 }
 
                 return coincideTexto && coincideCategoria && coincideEstado;
             }),
-        [listaPlatosSegura, busqueda, filtroCategoria, filtroEstado]
+        [listaPlatosEnriquecida, busqueda, filtroCategoria, filtroEstado]
     );
 
     const posiblesPadres = useMemo(
         () =>
-            listaPlatosSegura.filter(
+            listaPlatosEnriquecida.filter(
                 p =>
                     p.id !== idEdicion &&
                     !p.id_padre &&
                     (p.nombre || '').toLowerCase().includes(busquedaPadre.toLowerCase())
             ),
-        [listaPlatosSegura, idEdicion, busquedaPadre]
+        [listaPlatosEnriquecida, idEdicion, busquedaPadre]
     );
 
     const handleNombreChange = (e) => {
         const valor = e.target.value;
-        if (esSoloTexto(valor)) {
+        if (esNombrePlato(valor)) {
             setNombre(valor);
         }
     };
@@ -134,20 +149,30 @@ export default function Inventario() {
             setIdEdicion(plato.id);
             setNombre(plato.nombre || '');
             setPrecio(plato.precio !== undefined && plato.precio !== null ? String(plato.precio) : '');
-            setStock(plato.stock !== undefined && plato.stock !== null ? String(plato.stock) : '');
+            setStock(
+                plato.stockEfectivo !== undefined && plato.stockEfectivo !== null
+                    ? String(plato.stockEfectivo)
+                    : String(plato.stock ?? 0)
+            );
             setCategoria(plato.categoria);
 
             if (plato.id_padre) {
-                const padre = listaPlatosSegura.find(p => p.id === plato.id_padre);
-                setIdPadre(plato.id_padre);
-                setBusquedaPadre(padre ? padre.nombre : '');
+                const padre = listaPlatosEnriquecida.find(p => Number(p.id) === Number(plato.id_padre));
+                if (padre) {
+                    setIdPadre(padre.id);
+                    setBusquedaPadre(padre.nombre);
+                } else {
+                    // Si el plato padre ya no existe, limpiar la referencia huérfana
+                    setIdPadre('');
+                    setBusquedaPadre('');
+                }
             } else {
                 setIdPadre('');
                 setBusquedaPadre('');
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
-        [listaPlatosSegura]
+        [listaPlatosEnriquecida]
     );
 
     const cancelarEdicion = () => {
@@ -163,8 +188,8 @@ export default function Inventario() {
 
     const guardarPlato = async (e) => {
         e.preventDefault();
-        if (!nombre.trim() || !esSoloTexto(nombre.trim())) {
-            mostrarNotificacion('El nombre solo debe contener texto', 'error');
+        if (!nombre.trim() || !esNombrePlato(nombre.trim())) {
+            mostrarNotificacion('El nombre del plato no es válido', 'error');
             return;
         }
         if (!esMontoPositivoValido(precio)) {
@@ -199,36 +224,43 @@ export default function Inventario() {
             }
             cancelarEdicion();
             cargarDatos();
-        } catch {
-            mostrarNotificacion('Error al guardar plato', 'error');
+        } catch (err) {
+            mostrarNotificacion(err.response?.data?.error || 'Error al guardar plato', 'error');
         } finally {
             setCargando(false);
         }
     };
 
-    // Actualización rápida Inline de precio o stock
+    // Actualización rápida Inline de precio o stock (soporta platos principales y porciones)
     const guardarInline = useCallback(
         async (plato, campo, nuevoValor) => {
             try {
                 const valorNumerico = campo === 'precio' ? parseFloat(nuevoValor) : parseInt(nuevoValor, 10);
+                const idObjetivo =
+                    campo === 'stock' && plato.id_padre && !plato.esHuerfano ? plato.id_padre : plato.id;
+
                 const datos = {
-                    ...plato,
                     [campo]: valorNumerico,
                     motivo_auditoria:
                         campo === 'stock'
                             ? `Ajuste rápido de stock a ${valorNumerico}`
                             : `Ajuste rápido de precio a $${valorNumerico.toFixed(2)}`
                 };
-                await menuService.updatePlato(plato.id, datos);
+
+                if (plato.esHuerfano) {
+                    datos.id_padre = null;
+                }
+
+                await menuService.updatePlato(idObjetivo, datos);
                 mostrarNotificacion(
                     campo === 'stock'
-                        ? `Stock de "${plato.nombre}" actualizado a ${valorNumerico}`
+                        ? `Stock de "${plato.nombrePadre || plato.nombre}" actualizado a ${valorNumerico}`
                         : `Precio de "${plato.nombre}" actualizado a $${valorNumerico.toFixed(2)}`,
                     'exito'
                 );
                 cargarDatos();
-            } catch {
-                mostrarNotificacion('Error al actualizar en línea', 'error');
+            } catch (err) {
+                mostrarNotificacion(err.response?.data?.error || 'Error al actualizar en línea', 'error');
             }
         },
         [cargarDatos, mostrarNotificacion]
@@ -242,8 +274,8 @@ export default function Inventario() {
             mostrarNotificacion('Todo el inventario ha sido restablecido a 0', 'exito');
             setModalReiniciar(false);
             cargarDatos();
-        } catch {
-            mostrarNotificacion('Error al reiniciar el stock diario', 'error');
+        } catch (err) {
+            mostrarNotificacion(err.response?.data?.error || 'Error al reiniciar el stock diario', 'error');
         } finally {
             setEjecutandoReinicio(false);
         }
@@ -275,8 +307,8 @@ export default function Inventario() {
             }
             mostrarNotificacion(`${tipo === 'plato' ? 'Plato' : 'Categoría'} eliminada`, 'exito');
             cargarDatos();
-        } catch {
-            mostrarNotificacion('Error al eliminar', 'error');
+        } catch (err) {
+            mostrarNotificacion(err.response?.data?.error || 'Error al eliminar', 'error');
         } finally {
             setModalEliminar(null);
         }
@@ -290,8 +322,8 @@ export default function Inventario() {
             setNuevaCat('');
             mostrarNotificacion('Categoría agregada', 'exito');
             cargarDatos();
-        } catch {
-            mostrarNotificacion('Error al crear categoría', 'error');
+        } catch (err) {
+            mostrarNotificacion(err.response?.data?.error || 'Error al crear categoría', 'error');
         }
     };
 
@@ -545,6 +577,7 @@ export default function Inventario() {
             {/* COLUMNA DERECHA: CATÁLOGO CON ALERTAS, EDICIÓN INLINE, AUDITORÍA Y FILTROS RÁPIDOS */}
             <CatalogoPlatosInventario
                 platos={platosFiltrados}
+                todosLosPlatos={listaPlatosEnriquecida}
                 categorias={categorias}
                 busqueda={busqueda}
                 onBusquedaChange={setBusqueda}

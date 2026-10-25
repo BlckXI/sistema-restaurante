@@ -1,4 +1,5 @@
 const SOLO_TEXTO_REGEX = /^[a-zA-Z\sñÑáéíóúÁÉÍÓÚüÜ]*$/;
+const NOMBRE_PLATO_REGEX = /^[a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚüÜ().,/\-'"]*$/;
 const MONTO_DECIMAL_POSITIVO_REGEX = /^\d*(\.\d{0,2})?$/;
 const ENTERO_POSITIVO_REGEX = /^\d*$/;
 
@@ -9,6 +10,15 @@ const ENTERO_POSITIVO_REGEX = /^\d*$/;
  */
 export const esSoloTexto = (valor) => {
     return SOLO_TEXTO_REGEX.test(valor);
+};
+
+/**
+ * Valida nombres de platillos permitiendo letras, espacios, números y paréntesis/guiones.
+ * @param {string} valor - Nombre del platillo a evaluar.
+ * @returns {boolean}
+ */
+export const esNombrePlato = (valor) => {
+    return NOMBRE_PLATO_REGEX.test(valor);
 };
 
 /**

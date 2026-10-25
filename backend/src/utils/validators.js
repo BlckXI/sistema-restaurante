@@ -1,4 +1,5 @@
 const SOLO_TEXTO_REGEX = /^[a-zA-Z\sñÑáéíóúÁÉÍÓÚüÜ]+$/;
+const NOMBRE_PLATO_REGEX = /^[a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚüÜ().,/\-'"]+$/;
 
 /**
  * Valida que una cadena no vacía contenga únicamente letras y espacios.
@@ -9,6 +10,17 @@ const esTextoValido = (valor) => {
     if (typeof valor !== 'string') return false;
     const limpio = valor.trim();
     return limpio.length > 0 && SOLO_TEXTO_REGEX.test(limpio);
+};
+
+/**
+ * Valida nombres de platillos permitiendo letras, espacios, números y signos habituales como paréntesis o guiones.
+ * @param {string} valor
+ * @returns {boolean}
+ */
+const esNombrePlatoValido = (valor) => {
+    if (typeof valor !== 'string') return false;
+    const limpio = valor.trim();
+    return limpio.length > 0 && /[a-zA-ZñÑáéíóúÁÉÍÓÚüÜ]/.test(limpio) && NOMBRE_PLATO_REGEX.test(limpio);
 };
 
 /**
@@ -57,6 +69,7 @@ const esEnteroNoNegativoValido = (valor) => {
 
 module.exports = {
     esTextoValido,
+    esNombrePlatoValido,
     esTextoOpcionalValido,
     esMontoPositivoValido,
     esEnteroPositivoValido,
