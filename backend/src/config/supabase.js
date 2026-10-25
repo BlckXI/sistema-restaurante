@@ -1,5 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
+const { AsyncLocalStorage } = require('node:async_hooks');
 require('dotenv').config();
+
+const requestTokenStorage = new AsyncLocalStorage();
+let cachedSession = null;
 
 function createMockSupabase() {
     console.warn('[AI Studio] SUPABASE_URL / SUPABASE_KEY not configured — using in-memory store');
@@ -10,10 +14,10 @@ function createMockSupabase() {
             { id: 3, nombre: 'Combos' }
         ],
         platos: [
-            { id: 1, nombre: 'Hamburguesa Clásica', precio: 4.5, stock: 25, categoria: 'Hamburguesas', id_padre: null, updated_at: new Date().toISOString(), ultimo_cambio: 'Carga inicial del sistema' },
-            { id: 2, nombre: 'Hamburguesa Doble Queso', precio: 6.0, stock: 4, categoria: 'Hamburguesas', id_padre: null, updated_at: new Date().toISOString(), ultimo_cambio: 'Ajuste manual de stock' },
-            { id: 3, nombre: 'Refresco Natural', precio: 1.5, stock: 40, categoria: 'Bebidas', id_padre: null, updated_at: new Date().toISOString(), ultimo_cambio: 'Carga inicial del sistema' },
-            { id: 4, nombre: 'Combo De La Casa', precio: 7.5, stock: 0, categoria: 'Combos', id_padre: null, updated_at: new Date().toISOString(), ultimo_cambio: 'Stock agotado en turno anterior' }
+            { id: 1, nombre: 'Hamburguesa Clásica', precio: 4.5, stock: 25, categoria: 'Hamburguesas', id_padre: null },
+            { id: 2, nombre: 'Hamburguesa Doble Queso', precio: 6.0, stock: 4, categoria: 'Hamburguesas', id_padre: null },
+            { id: 3, nombre: 'Refresco Natural', precio: 1.5, stock: 40, categoria: 'Bebidas', id_padre: null },
+            { id: 4, nombre: 'Combo De La Casa', precio: 7.5, stock: 0, categoria: 'Combos', id_padre: null }
         ],
         ordenes: [],
         gastos: [],
@@ -151,6 +155,11 @@ function createMockSupabase() {
     }
 
     return {
+        isMock: true,
+        runWithToken: (_token, callback) => callback(),
+        getActiveToken: () => 'mock-session-token',
+        setCachedSession: () => {},
+        getCachedSession: () => null,
         from: (table) => new QueryBuilder(table),
         auth: {
             signInWithPassword: async ({ email, password }) => {
@@ -159,18 +168,88 @@ function createMockSupabase() {
                 }
                 const session = {
                     access_token: 'mock-session-token',
+                    refresh_token: 'mock-refresh-token',
                     user: { id: 'demo-user', email }
                 };
                 return { data: { session, user: session.user }, error: null };
             },
+            refreshSession: async () => ({
+                data: {
+                    session: {
+                        access_token: 'mock-session-token',
+                        refresh_token: 'mock-refresh-token',
+                        user: { id: 'demo-user', email: 'demo@dlacasa.com' }
+                    }
+                },
+                error: null
+            }),
             signOut: async () => ({ error: null })
         }
     };
 }
 
+function createStatelessAuthClient() {
+    return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        }
+    });
+}
+
 let supabase;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+    const getActiveToken = () => {
+        const store = requestTokenStorage.getStore();
+        if (store && store.accessToken) {
+            return store.accessToken;
+        }
+        if (cachedSession && cachedSession.access_token) {
+            return cachedSession.access_token;
+        }
+        return null;
+    };
+
+    const dbClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
+        accessToken: async () => getActiveToken()
+    });
+
+    supabase = {
+        isMock: false,
+        runWithToken: (accessToken, callback) => {
+            return requestTokenStorage.run({ accessToken }, callback);
+        },
+        getActiveToken,
+        setCachedSession: (session) => {
+            if (session && session.access_token) {
+                cachedSession = session;
+            }
+        },
+        getCachedSession: () => cachedSession,
+        from: (table) => dbClient.from(table),
+        rpc: (fn, args, options) => dbClient.rpc(fn, args, options),
+        schema: (name) => dbClient.schema(name),
+        auth: {
+            signInWithPassword: async ({ email, password }) => {
+                const authClient = createStatelessAuthClient();
+                const result = await authClient.auth.signInWithPassword({ email, password });
+                if (!result.error && result.data?.session?.access_token) {
+                    cachedSession = result.data.session;
+                }
+                return result;
+            },
+            refreshSession: async ({ refresh_token }) => {
+                const authClient = createStatelessAuthClient();
+                const result = await authClient.auth.refreshSession({ refresh_token });
+                if (!result.error && result.data?.session?.access_token) {
+                    cachedSession = result.data.session;
+                }
+                return result;
+            },
+            signOut: async () => ({ error: null })
+        }
+    };
 } else {
     supabase = createMockSupabase();
 }

@@ -1,4 +1,4 @@
-import { apiClient, AUTH_STORAGE_KEY, LEGACY_AUTH_STORAGE_KEY } from './config';
+import { apiClient, AUTH_STORAGE_KEY, LEGACY_AUTH_STORAGE_KEY, URL_BACKEND } from './config';
 
 const listeners = new Set();
 
@@ -12,6 +12,17 @@ if (typeof window !== 'undefined') {
     });
 }
 
+const esTokenInvalidoEnProduccion = (token) => {
+    if (!token || token === 'local-session-token' || token === 'session-token') {
+        return true;
+    }
+    const esBackendRemoto = URL_BACKEND.includes('onrender.com') || URL_BACKEND.includes('supabase.co');
+    if (esBackendRemoto && token === 'mock-session-token') {
+        return true;
+    }
+    return false;
+};
+
 export const authService = {
     getSession: () => {
         try {
@@ -23,9 +34,7 @@ export const authService = {
             const parsed = JSON.parse(raw);
             if (
                 !parsed ||
-                !parsed.access_token ||
-                parsed.access_token === 'local-session-token' ||
-                parsed.access_token === 'session-token' ||
+                esTokenInvalidoEnProduccion(parsed.access_token) ||
                 !parsed.user?.email
             ) {
                 localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -43,7 +52,10 @@ export const authService = {
     },
 
     login: async (email, password) => {
-        const { data } = await apiClient.post('/auth/login', { email, password });
+        const { data } = await apiClient.post('/auth/login', {
+            email: String(email || '').trim(),
+            password
+        });
         if (!data || !data.session || !data.session.access_token) {
             throw new Error('No se pudo establecer una sesión válida');
         }

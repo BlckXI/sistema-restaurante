@@ -179,3 +179,41 @@ test('Paginación de historial de movimientos calcula rangos y páginas correcta
     assert.equal(pagina3.from, 20);
     assert.equal(pagina3.to, 29);
 });
+
+test('errorHandler distingue 401 sin token de 403 con token ante errores RLS', () => {
+    const { errorHandler } = require('../backend/src/app');
+
+    const crearResMock = () => {
+        const res = {
+            headersSent: false,
+            statusCode: 200,
+            payload: null,
+            setHeader() {},
+            status(code) {
+                this.statusCode = code;
+                return this;
+            },
+            json(body) {
+                this.payload = body;
+                return this;
+            }
+        };
+        return res;
+    };
+
+    const errRls = new Error('new row violates row-level security policy for table "categorias"');
+
+    const resSinToken = crearResMock();
+    errorHandler(errRls, { method: 'POST', originalUrl: '/categorias' }, resSinToken, () => {});
+    assert.equal(resSinToken.statusCode, 401);
+
+    const resConToken = crearResMock();
+    errorHandler(
+        errRls,
+        { method: 'POST', originalUrl: '/categorias', accessToken: 'valid-jwt-token' },
+        resConToken,
+        () => {}
+    );
+    assert.equal(resConToken.statusCode, 403);
+});
+

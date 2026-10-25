@@ -10,6 +10,30 @@ const menuRoutes = require('./routes/menuRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
 
+const TOKENS_LOCALES_INVALIDOS = new Set([
+    'local-session-token',
+    'session-token',
+    'mock-session-token',
+    'null',
+    'undefined'
+]);
+
+/**
+ * Verifica si un token JWT tiene formato válido y no ha expirado (con margen de 60 segundos).
+ */
+const esJwtExpiradoOInvalido = (token) => {
+    try {
+        const partes = String(token || '').split('.');
+        if (partes.length !== 3) return true;
+        const payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8'));
+        if (!payload.exp) return false;
+        const ahoraSegundos = Math.floor(Date.now() / 1000);
+        return payload.exp <= ahoraSegundos + 60;
+    } catch {
+        return true;
+    }
+};
+
 /**
  * Middleware global de manejo de errores para estandarizar respuestas HTTP ante fallos.
  */
@@ -18,15 +42,22 @@ const errorHandler = (err, req, res, _next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     const rawMessage = err.message || 'Error interno del servidor';
-    const isRlsOrJwtError =
-        rawMessage.includes('row-level security policy') ||
+    const isJwtError =
         rawMessage.includes('JWT expired') ||
-        rawMessage.includes('invalid JWT');
+        rawMessage.includes('invalid JWT') ||
+        rawMessage.includes('invalid claim: missing sub claim');
+    const isRlsError = rawMessage.includes('row-level security policy');
 
-    const statusCode = isRlsOrJwtError ? 401 : (err.statusCode || 500);
-    const message = isRlsOrJwtError
-        ? 'Sesión de base de datos expirada. Por favor, inicie sesión nuevamente.'
-        : rawMessage;
+    let statusCode = err.statusCode || 500;
+    let message = rawMessage;
+
+    if (isJwtError || (isRlsError && !req.accessToken)) {
+        statusCode = 401;
+        message = 'Sesión expirada o no autenticada. Por favor, inicie sesión nuevamente.';
+    } else if (isRlsError && req.accessToken) {
+        statusCode = 403;
+        message = 'Permiso denegado por política de seguridad (RLS) en Supabase para este usuario.';
+    }
 
     console.error(`[Error ${statusCode}] ${req.method} ${req.originalUrl}: ${rawMessage}`);
     res.status(statusCode).json({ error: message });
@@ -50,7 +81,8 @@ const createApp = (io) => {
         cors({
             origin: '*',
             methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token']
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token'],
+            exposedHeaders: ['x-access-token', 'x-refresh-token']
         })
     );
     app.use(express.json());
@@ -60,7 +92,7 @@ const createApp = (io) => {
         next();
     });
 
-    // Restaurar y verificar sesión autenticada en Supabase tras reinicios del contenedor en Render
+    // Inyectar el token JWT del usuario por petición para que Supabase RLS se ejecute con el rol autenticado
     app.use(async (req, res, next) => {
         const esRutaPublica =
             req.path === '/' ||
@@ -68,42 +100,61 @@ const createApp = (io) => {
             req.path.startsWith('/auth') ||
             req.method === 'OPTIONS';
 
-        if (esRutaPublica || typeof supabase?.auth?.getSession !== 'function') {
+        if (esRutaPublica || supabase.isMock) {
             return next();
         }
 
         try {
-            const { data: current } = await supabase.auth.getSession();
-            let sesionActiva = current?.session || null;
+            const authHeader = req.headers.authorization || '';
+            const refreshTokenHeader = req.headers['x-refresh-token'];
+            let accessToken = null;
 
-            if (!sesionActiva) {
-                const authHeader = req.headers.authorization;
-                const refreshToken = req.headers['x-refresh-token'];
-                if (authHeader && authHeader.startsWith('Bearer ') && refreshToken) {
-                    const accessToken = authHeader.slice(7).trim();
-                    if (
-                        accessToken &&
-                        accessToken !== 'mock-session-token' &&
-                        accessToken !== 'local-session-token'
-                    ) {
-                        const { data: restaurada } = await supabase.auth.setSession({
-                            access_token: accessToken,
-                            refresh_token: String(refreshToken)
-                        });
-                        sesionActiva = restaurada?.session || null;
+            if (authHeader.startsWith('Bearer ')) {
+                const candidate = authHeader.slice(7).trim();
+                if (candidate && !TOKENS_LOCALES_INVALIDOS.has(candidate)) {
+                    accessToken = candidate;
+                }
+            }
+
+            // Si el token falta o está vencido, intentar renovarlo con X-Refresh-Token
+            if ((!accessToken || esJwtExpiradoOInvalido(accessToken)) && refreshTokenHeader) {
+                const cleanRefresh = String(refreshTokenHeader).trim();
+                if (cleanRefresh && !TOKENS_LOCALES_INVALIDOS.has(cleanRefresh)) {
+                    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession({
+                        refresh_token: cleanRefresh
+                    });
+                    if (!refreshErr && refreshed?.session?.access_token) {
+                        accessToken = refreshed.session.access_token;
+                        res.setHeader('x-access-token', refreshed.session.access_token);
+                        if (refreshed.session.refresh_token) {
+                            res.setHeader('x-refresh-token', refreshed.session.refresh_token);
+                        }
                     }
                 }
             }
 
-            if (!sesionActiva) {
+            // Respaldo: si hay una sesión válida recién autenticada en memoria del servidor
+            if (!accessToken || esJwtExpiradoOInvalido(accessToken)) {
+                const cached = supabase.getCachedSession?.();
+                if (cached?.access_token && !esJwtExpiradoOInvalido(cached.access_token)) {
+                    accessToken = cached.access_token;
+                }
+            }
+
+            if (!accessToken || esJwtExpiradoOInvalido(accessToken)) {
                 return res.status(401).json({
-                    error: 'Sesión no iniciada o expirada en el servidor. Por favor, inicie sesión.'
+                    error: 'Sesión no iniciada o expirada. Por favor, inicie sesión.'
                 });
             }
+
+            req.accessToken = accessToken;
+            return supabase.runWithToken(accessToken, () => next());
         } catch (err) {
-            console.warn('Aviso al sincronizar sesión de Supabase:', err.message);
+            console.warn('Aviso al verificar token de sesión en Supabase:', err.message);
+            return res.status(401).json({
+                error: 'No se pudo validar la sesión. Por favor, inicie sesión nuevamente.'
+            });
         }
-        return next();
     });
 
     // Enrutadores de API

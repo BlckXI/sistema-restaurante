@@ -49,13 +49,34 @@ apiClient.interceptors.request.use((config) => {
     return config;
 });
 
-// Si el backend indica que la sesión de Supabase expiró o no está autenticada (401), forzar re-login limpio
+// Sincronizar tokens renovados por el backend y manejar expiración de sesión (401)
 apiClient.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        try {
+            const newAccessToken = response?.headers?.['x-access-token'];
+            const newRefreshToken = response?.headers?.['x-refresh-token'];
+            if (newAccessToken) {
+                const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+                if (raw) {
+                    const currentSession = JSON.parse(raw);
+                    const updatedSession = {
+                        ...currentSession,
+                        access_token: newAccessToken,
+                        refresh_token: newRefreshToken || currentSession.refresh_token
+                    };
+                    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedSession));
+                }
+            }
+        } catch {
+            // Ignorar errores de actualización de localStorage
+        }
+        return response;
+    },
     (error) => {
         const status = error?.response?.status;
-        const isLoginRequest = error?.config?.url?.includes('/auth/login');
-        if (status === 401 && !isLoginRequest) {
+        const url = error?.config?.url || '';
+        const isAuthRequest = url.includes('/auth/login') || url.includes('/auth/logout');
+        if (status === 401 && !isAuthRequest) {
             try {
                 localStorage.removeItem(AUTH_STORAGE_KEY);
                 localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);

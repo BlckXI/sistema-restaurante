@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementacion para aislar el cliente de Supabase por peticion mediante JWT, renovar sesiones expiradas de forma transparente y eliminar el bucle infinito de redireccion al login.",
+  "updatedAt":  "2026-10-25T22:21:22.833099802Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
