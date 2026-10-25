@@ -1,67 +1,68 @@
 import { useState } from 'react';
-import { supabase } from './supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { authService } from './api/authService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [mensajeError, setMensajeError] = useState('');
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault(); // 1. ESTO DEBE IR PRIMERO SIEMPRE
+    e.preventDefault();
     setCargando(true);
+    setMensajeError('');
 
     try {
-      // Intentamos iniciar sesión con la llave correcta que ya pusiste
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error; // Si Supabase da error, saltamos al catch
-
-      // Si todo sale bien:
-      navigate('/'); 
-      
+      await authService.login(email, password);
+      navigate('/');
     } catch (error) {
-      console.error("Error de Login:", error);
-      // Mostramos el mensaje real para saber qué pasa
-      alert(error.message === "Invalid login credentials" 
-        ? "Correo o contraseña incorrectos" 
-        : "Error: " + error.message);
+      const msg = error?.response?.data?.error || error.message || 'Error al iniciar sesión';
+      setMensajeError(
+        msg === 'Invalid login credentials'
+          ? 'Correo o contraseña incorrectos'
+          : msg
+      );
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
         <div className="text-center mb-8">
-            <span className="text-4xl">🍔</span>
-            <h1 className="text-2xl font-bold text-gray-800 mt-2">D' La Casa</h1>
-            <p className="text-gray-500 text-sm">Acceso exclusivo para personal</p>
+          <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center font-black text-white text-2xl shadow-md mx-auto mb-3">
+            D
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">D&apos; La Casa</h1>
+          <p className="text-slate-500 text-sm mt-1">Acceso exclusivo para personal</p>
         </div>
+        {mensajeError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-500 text-white text-sm font-medium text-center">
+            {mensajeError}
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Correo</label>
+            <label className="block text-sm font-bold text-slate-900 mb-1">Correo</label>
             <input
               type="email"
               placeholder="admin@restaurante.com"
-              className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Contraseña</label>
+            <label className="block text-sm font-bold text-slate-900 mb-1">Contraseña</label>
             <input
               type="password"
               placeholder="••••••••"
-              className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -70,7 +71,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700 transition shadow-lg"
+            className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 transition shadow-md"
           >
             {cargando ? 'Verificando...' : 'ENTRAR AL SISTEMA'}
           </button>

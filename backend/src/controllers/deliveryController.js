@@ -1,24 +1,21 @@
-const supabase = require('../config/supabase');
-const { getRangoDiario } = require('../utils/dateUtils');
+const orderService = require('../services/orderService');
 
-const obtenerPedidos = async (req, res) => {
-    const { data } = await supabase.from('ordenes')
-        .select('*')
-        .eq('estado', 'listo')
-        .eq('tipo_entrega', 'domicilio')
-        .order('id', { ascending: true });
-    res.json(data);
+const obtenerPedidos = async (req, res, next) => {
+    try {
+        const pedidos = await orderService.listarPedidosDomicilioListos();
+        return res.json(pedidos);
+    } catch (error) {
+        return next(error);
+    }
 };
 
-const obtenerHistorial = async (req, res) => {
-    const { inicio, fin } = getRangoDiario();
-    const { data } = await supabase.from('ordenes')
-        .select('*')
-        .eq('estado', 'entregado')
-        .gte('created_at', inicio)
-        .lt('created_at', fin)
-        .order('id', { ascending: false });
-    res.json(data);
+const obtenerHistorial = async (req, res, next) => {
+    try {
+        const historial = await orderService.listarHistorialEntregasHoy();
+        return res.json(historial);
+    } catch (error) {
+        return next(error);
+    }
 };
 
 module.exports = { obtenerPedidos, obtenerHistorial };

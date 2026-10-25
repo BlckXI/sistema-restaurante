@@ -4,252 +4,288 @@ import { orderService } from './api/orderService';
 import { socketClient } from './api/socketService';
 
 export default function Repartidor() {
-  const [pestana, setPestana] = useState('pendientes'); // 'pendientes' o 'historial'
-  const [pedidos, setPedidos] = useState([]);
-  const [historial, setHistorial] = useState([]);
+    const [pestana, setPestana] = useState('pendientes');
+    const [pedidos, setPedidos] = useState([]);
+    const [historial, setHistorial] = useState([]);
 
-  // --- ESTADOS PARA UI MEJORADA ---
-  const [notificacion, setNotificacion] = useState(null);
-  const [modalEntregar, setModalEntregar] = useState(null); // Guarda el ID de la orden a confirmar
+    const [notificacion, setNotificacion] = useState(null);
+    const [modalEntregar, setModalEntregar] = useState(null);
 
-  useEffect(() => {
-    cargarDatos();
+    const cargarDatos = async () => {
+        try {
+            const resPendientes = await deliveryService.getPedidos();
+            setPedidos(Array.isArray(resPendientes.data) ? resPendientes.data : []);
 
-    // Escuchar cuando cocina termina algo
-    socketClient.on('orden_lista', (orden) => {
-        if (orden.tipo_entrega === 'domicilio') {
-            playNotificationSound();
-            cargarDatos(); 
+            const resHistorial = await deliveryService.getHistorial();
+            setHistorial(Array.isArray(resHistorial.data) ? resHistorial.data : []);
+        } catch {
+            setPedidos([]);
+            setHistorial([]);
         }
-    });
-
-    // Escuchar cuando otro repartidor entrega una orden
-    socketClient.on('orden_entregada', () => {
-        cargarDatos(); 
-    });
-
-    return () => {
-        socketClient.off('orden_lista');
-        socketClient.off('orden_entregada'); // Limpiamos el nuevo listener
     };
-  }, []);
 
-  const cargarDatos = async () => {
-    try {
-        const resPendientes = await deliveryService.getPedidos();
-        setPedidos(resPendientes.data);
+    const playNotificationSound = () => {
+        const audio = new Audio('https://actions.google.com/sounds/v1/transport_transportation/car_horn.ogg');
+        audio.play().catch(() => {});
+    };
 
-        const resHistorial = await deliveryService.getHistorial();
-        setHistorial(resHistorial.data);
-    } catch (error) { console.error("Error cargando datos repartidor"); }
-  };
+    useEffect(() => {
+        cargarDatos();
 
-  // --- LÓGICA DE ENTREGA CON MODAL ---
-  
-  // 1. Abrir modal (pregunta)
-  const solicitarEntrega = (id) => {
-    setModalEntregar(id);
-  };
+        const handleOrdenLista = (orden) => {
+            if (orden.tipo_entrega === 'domicilio') {
+                playNotificationSound();
+                cargarDatos();
+            }
+        };
 
-  // 2. Ejecutar acción (respuesta afirmativa)
-  const confirmarEntrega = async () => {
-    if (!modalEntregar) return;
+        const handleOrdenEntregada = () => {
+            cargarDatos();
+        };
 
-    try {
-        await orderService.entregarOrden(modalEntregar);
-        mostrarNotificacion("¡Entrega registrada con éxito!", "exito");
-        cargarDatos(); // Mover de pendiente a historial
-    } catch (error) { 
-        mostrarNotificacion("Error al registrar la entrega", "error");
-    } finally {
-        setModalEntregar(null); // Cerrar modal
-    }
-  };
+        socketClient.on('orden_lista', handleOrdenLista);
+        socketClient.on('orden_entregada', handleOrdenEntregada);
 
-  const mostrarNotificacion = (mensaje, tipo) => {
-    setNotificacion({ mensaje, tipo });
-    setTimeout(() => setNotificacion(null), 3000);
-  };
+        return () => {
+            socketClient.off('orden_lista', handleOrdenLista);
+            socketClient.off('orden_entregada', handleOrdenEntregada);
+        };
+    }, []);
 
-  const playNotificationSound = () => {
-    const audio = new Audio('https://actions.google.com/sounds/v1/transport_transportation/car_horn.ogg');
-    audio.play().catch(e => console.log("Audio bloqueado"));
-  };
+    const solicitarEntrega = (id) => {
+        setModalEntregar(id);
+    };
 
-  return (
-    <div className="max-w-4xl mx-auto p-4 relative">
-      
-      {/* --- MODAL DE CONFIRMACIÓN DE ENTREGA (NUEVO) --- */}
-      {modalEntregar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-green-900 bg-opacity-90 backdrop-blur-sm p-4 transition-all animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform scale-100">
-                <div className="bg-green-600 p-6 text-center">
-                    <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-white bg-opacity-20 mb-4 backdrop-blur-md shadow-inner">
-                        <span className="text-4xl text-white">📦</span>
+    const confirmarEntrega = async () => {
+        if (!modalEntregar) return;
+
+        try {
+            await orderService.entregarOrden(modalEntregar);
+            mostrarNotificacion('Entrega registrada con éxito', 'exito');
+            cargarDatos();
+        } catch {
+            mostrarNotificacion('Error al registrar la entrega', 'error');
+        } finally {
+            setModalEntregar(null);
+        }
+    };
+
+    const mostrarNotificacion = (mensaje, tipo) => {
+        setNotificacion({ mensaje, tipo });
+        setTimeout(() => setNotificacion(null), 3000);
+    };
+
+    return (
+        <div className="w-full max-w-5xl mx-auto relative">
+            {modalEntregar && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                        <div className="bg-emerald-500 p-5 text-center">
+                            <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">Confirmar Entrega</h3>
+                            <p className="text-emerald-50 text-xs sm:text-sm">¿Ya entregaste este pedido?</p>
+                        </div>
+
+                        <div className="p-5 text-center">
+                            <p className="text-slate-500 text-sm">
+                                Al confirmar, la orden pasará al historial de entregas realizadas hoy.
+                            </p>
+                        </div>
+
+                        <div className="bg-slate-50 px-5 py-4 flex gap-3 justify-center border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setModalEntregar(null)}
+                                className="w-1/2 bg-white text-slate-900 border border-slate-300 font-bold py-3 rounded-xl hover:bg-slate-100 text-sm transition"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmarEntrega}
+                                className="w-1/2 bg-emerald-500 text-white font-bold py-3 rounded-xl hover:bg-emerald-600 shadow-md text-sm transition active:scale-95"
+                            >
+                                SÍ, ENTREGADO
+                            </button>
+                        </div>
                     </div>
-                    <h3 className="text-2xl font-bold text-white mb-1">Confirmar Entrega</h3>
-                    <p className="text-green-100 text-sm">¿Ya entregaste este pedido?</p>
-                </div>
-                
-                <div className="p-6 text-center">
-                    <p className="text-gray-600">Al confirmar, la orden pasará al historial de entregas realizadas.</p>
-                </div>
-
-                <div className="bg-gray-50 px-6 py-4 flex gap-3 justify-center border-t border-gray-100">
-                    <button 
-                        onClick={() => setModalEntregar(null)}
-                        className="w-1/2 bg-white text-gray-700 border border-gray-300 font-bold py-3 rounded-xl hover:bg-gray-100 transition"
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        onClick={confirmarEntrega}
-                        className="w-1/2 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 shadow-lg shadow-green-200 transition transform active:scale-95"
-                    >
-                        ¡SÍ, ENTREGADO!
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* NOTIFICACIÓN TOAST */}
-      {notificacion && (
-        <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl z-[60] text-white font-bold transition-all animate-bounce
-            ${notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
-            {notificacion.mensaje}
-        </div>
-      )}
-
-      <h1 className="text-3xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-        🛵 Panel de Repartidor
-      </h1>
-
-      {/* PESTAÑAS */}
-      <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
-        <button 
-            onClick={() => setPestana('pendientes')}
-            className={`flex-1 py-2 rounded-md font-bold transition ${pestana === 'pendientes' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}
-        >
-            Por Entregar ({pedidos.length})
-        </button>
-        <button 
-            onClick={() => setPestana('historial')}
-            className={`flex-1 py-2 rounded-md font-bold transition ${pestana === 'historial' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:bg-gray-200'}`}
-        >
-            Entregados Hoy ({historial.length})
-        </button>
-      </div>
-
-      {/* CONTENIDO PESTAÑA PENDIENTES */}
-      {pestana === 'pendientes' && (
-        <div className="grid gap-4 md:grid-cols-2">
-            {pedidos.length === 0 && (
-                <div className="col-span-full text-center py-12 bg-blue-50 rounded-lg border border-blue-100">
-                    <p className="text-4xl mb-2">😎</p>
-                    <p className="text-blue-800 font-bold">Todo entregado. Esperando a cocina...</p>
                 </div>
             )}
 
-            {pedidos.map(orden => (
-                <div key={orden.id} className="bg-white border-l-8 border-blue-500 rounded-lg shadow-md p-5 relative hover:shadow-lg transition">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">
-                                Ticket #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
-                            </span>
-                            <h3 className="text-xl font-bold text-gray-800 mt-1">{orden.cliente}</h3>
-                        </div>
-                        {orden.hora_programada && (
-                            <div className="text-right bg-yellow-100 px-2 py-1 rounded border border-yellow-200">
-                                <p className="text-[10px] text-yellow-800 font-bold uppercase">Entrega</p>
-                                <p className="font-bold text-yellow-900">{orden.hora_programada}</p>
-                            </div>
-                        )}
-                    </div>
+            {notificacion && (
+                <div
+                    className={`fixed top-16 sm:top-5 left-1/2 transform -translate-x-1/2 px-5 py-3 rounded-xl shadow-xl z-[60] text-white font-bold text-sm max-w-[90vw] text-center ${
+                        notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-emerald-500'
+                    }`}
+                >
+                    {notificacion.mensaje}
+                </div>
+            )}
 
-                    {/* DIRECCIÓN GIGANTE */}
-                    <div className="mb-4 bg-gray-50 p-3 rounded border border-gray-200">
-                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">📍 Dirección de Entrega</p>
-                        <p className="text-lg font-medium text-gray-800 break-words mt-1">{orden.direccion}</p>
-                        
-                        <a 
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(orden.direccion)}`} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="text-blue-600 text-sm font-bold hover:text-blue-800 hover:underline flex items-center gap-1 mt-3"
-                        >
-                            <span>🗺️</span> Ver en Mapa
-                        </a>
-                    </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Panel de Repartidor</h1>
 
-                    {/* COMENTARIOS PARA EL REPARTIDOR*/}
-
-                    {orden.comentarios && orden.comentarios.trim() !== '' && (
-                        <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r text-sm">
-                            <div className="flex items-center gap-1 mb-1">
-                                <span className="text-yellow-600">💡</span>
-                                <span className="font-bold text-yellow-800 text-xs">NOTAS DEL CLIENTE:</span>
-                            </div>
-                            <p className="text-yellow-900 font-semibold">{orden.comentarios}</p>
-                        </div>
-                    )}
-
-                    <div className="flex justify-between items-center mb-4 bg-white">
-                        <a href={`tel:${orden.telefono}`} className="flex items-center gap-2 text-gray-600 font-bold bg-gray-100 px-3 py-2 rounded hover:bg-gray-200 transition">
-                            📞 {orden.telefono || 'Sin número'}
-                        </a>
-                        <div className="text-right">
-                            <p className="text-xs text-gray-400 uppercase font-bold">Cobrar</p>
-                            <p className="text-2xl font-bold text-gray-800 leading-none">${orden.total.toFixed(2)}</p>
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={() => solicitarEntrega(orden.id)}
-                        className="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow hover:bg-green-700 transition flex justify-center items-center gap-2 transform active:scale-[0.98]"
+                <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+                    <button
+                        type="button"
+                        onClick={() => setPestana('pendientes')}
+                        className={`flex-1 sm:flex-initial sm:px-4 py-2 rounded-lg font-bold text-xs sm:text-sm transition ${
+                            pestana === 'pendientes'
+                                ? 'bg-orange-500 shadow text-white'
+                                : 'text-slate-500 hover:bg-slate-200'
+                        }`}
                     >
-                        📦 MARCAR COMO ENTREGADO
+                        Por Entregar ({pedidos.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setPestana('historial')}
+                        className={`flex-1 sm:flex-initial sm:px-4 py-2 rounded-lg font-bold text-xs sm:text-sm transition ${
+                            pestana === 'historial'
+                                ? 'bg-emerald-500 shadow text-white'
+                                : 'text-slate-500 hover:bg-slate-200'
+                        }`}
+                    >
+                        Entregados Hoy ({historial.length})
                     </button>
                 </div>
-            ))}
-        </div>
-      )}
-
-      {/* CONTENIDO PESTAÑA HISTORIAL */}
-      {pestana === 'historial' && (
-        <div className="bg-white rounded-lg shadow border overflow-hidden">
-            <div className="bg-green-50 p-4 border-b border-green-100 flex justify-between items-center">
-                <h3 className="font-bold text-green-800">Entregas Realizadas</h3>
-                <span className="bg-white text-green-600 px-2 py-1 rounded text-xs font-bold shadow-sm">{historial.length} Total</span>
             </div>
-            <table className="w-full text-left">
-                <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                    <tr>
-                        <th className="p-3">Hora</th>
-                        <th className="p-3">Cliente</th>
-                        <th className="p-3 hidden sm:table-cell">Dirección</th>
-                        <th className="p-3 text-right">Cobrado</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {historial.map(orden => (
-                        <tr key={orden.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="p-3 text-sm text-gray-500 font-mono">
-                                {new Date(orden.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                            </td>
-                            <td className="p-3 font-bold text-gray-700">{orden.cliente}</td>
-                            <td className="p-3 text-sm text-gray-600 truncate max-w-xs hidden sm:table-cell">{orden.direccion}</td>
-                            <td className="p-3 text-right font-bold text-green-600">${orden.total.toFixed(2)}</td>
-                        </tr>
-                    ))}
-                    {historial.length === 0 && (
-                        <tr><td colSpan="4" className="p-8 text-center text-gray-400 italic">Aún no has entregado nada hoy.</td></tr>
+
+            {pestana === 'pendientes' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pedidos.length === 0 && (
+                        <div className="col-span-full text-center py-14 bg-white rounded-xl border border-dashed border-slate-300 px-4">
+                            <p className="text-slate-500 font-semibold">Todo entregado. Esperando a cocina...</p>
+                        </div>
                     )}
-                </tbody>
-            </table>
+
+                    {pedidos.map(orden => (
+                        <div
+                            key={orden.id}
+                            className="w-full bg-white border-l-8 border-orange-500 rounded-xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 flex flex-col justify-between"
+                        >
+                            <div>
+                                <div className="flex justify-between items-start gap-2 mb-3">
+                                    <div className="min-w-0">
+                                        <span className="bg-slate-800 text-white text-xs font-bold px-2.5 py-1 rounded-md inline-block">
+                                            Ticket #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
+                                        </span>
+                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mt-1.5 break-words">
+                                            {orden.cliente}
+                                        </h3>
+                                    </div>
+                                    {orden.hora_programada && (
+                                        <div className="text-right bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 shrink-0">
+                                            <p className="text-[10px] text-amber-700 font-bold uppercase">Entrega</p>
+                                            <p className="font-bold text-slate-900 text-sm">{orden.hora_programada}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mb-3.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                        Dirección de Entrega
+                                    </p>
+                                    <p className="text-base sm:text-lg font-semibold text-slate-900 break-words mt-1">
+                                        {orden.direccion}
+                                    </p>
+
+                                    <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                            orden.direccion || ''
+                                        )}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sky-700 text-xs sm:text-sm font-bold hover:text-sky-800 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 mt-2.5"
+                                    >
+                                        Ver en Mapa
+                                    </a>
+                                </div>
+
+                                {orden.comentarios && orden.comentarios.trim() !== '' && (
+                                    <div className="mb-3.5 bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-lg text-sm break-words">
+                                        <span className="font-bold text-amber-700 text-xs block mb-0.5">
+                                            NOTAS DEL CLIENTE:
+                                        </span>
+                                        <p className="text-slate-500 font-semibold">{orden.comentarios}</p>
+                                    </div>
+                                )}
+
+                                <div className="flex flex-wrap justify-between items-center gap-2 mb-4 pt-2 border-t border-slate-100">
+                                    <a
+                                        href={`tel:${orden.telefono}`}
+                                        className="flex items-center gap-2 text-slate-900 font-bold bg-slate-100 px-3.5 py-2 rounded-lg hover:bg-slate-200 text-xs sm:text-sm transition"
+                                    >
+                                        Tel: {orden.telefono || 'Sin número'}
+                                    </a>
+                                    <div className="text-right">
+                                        <p className="text-[11px] text-slate-500 uppercase font-bold">Cobrar</p>
+                                        <p className="text-xl sm:text-2xl font-bold text-slate-900 leading-none">
+                                            ${(orden.total || 0).toFixed(2)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => solicitarEntrega(orden.id)}
+                                className="w-full bg-emerald-500 text-white font-bold py-3.5 rounded-xl shadow hover:bg-emerald-600 transition flex justify-center items-center text-sm sm:text-base active:scale-[0.99]"
+                            >
+                                MARCAR COMO ENTREGADO
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {pestana === 'historial' && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-slate-800 px-4 py-3.5 border-b border-slate-700 flex justify-between items-center">
+                        <h3 className="font-bold text-white text-sm sm:text-base">Entregas Realizadas</h3>
+                        <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">
+                            {historial.length} Total
+                        </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[420px]">
+                            <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
+                                <tr>
+                                    <th className="p-3">Hora</th>
+                                    <th className="p-3">Cliente</th>
+                                    <th className="p-3">Dirección</th>
+                                    <th className="p-3 text-right">Cobrado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-sm">
+                                {historial.map(orden => (
+                                    <tr key={orden.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-xs sm:text-sm text-slate-500 font-mono whitespace-nowrap">
+                                            {new Date(orden.created_at).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </td>
+                                        <td className="p-3 font-bold text-slate-900">{orden.cliente}</td>
+                                        <td className="p-3 text-xs sm:text-sm text-slate-500 max-w-[200px] truncate">
+                                            {orden.direccion}
+                                        </td>
+                                        <td className="p-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                                            ${(orden.total || 0).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {historial.length === 0 && (
+                                    <tr>
+                                        <td colSpan="4" className="p-8 text-center text-slate-500 italic">
+                                            Aún no has entregado pedidos hoy.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }

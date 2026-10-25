@@ -1,83 +1,141 @@
-const supabase = require('../config/supabase');
+const menuService = require('../services/menuService');
+const { esTextoValido, esMontoPositivoValido, esEnteroNoNegativoValido } = require('../utils/validators');
 
-const obtenerPlatos = async (req, res) => {
-    const { data, error } = await supabase.from('platos').select('*').order('id', { ascending: true }); 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-};
-
-const crearPlato = async (req, res) => {
-    const { nombre, precio, stock, categoria, id_padre } = req.body;
-    const { data, error } = await supabase.from('platos').insert([{ nombre, precio, stock: id_padre ? 0 : stock, categoria, id_padre }]).select();
-    if (error) return res.status(500).json({ error: error.message }); 
-    req.io.emit('menu_actualizado'); // AVISO DE WEBSOCKET
-    res.json(data[0]);
-};
-
-const actualizarPlato = async (req, res) => {
-    const { id } = req.params; 
-    const { nombre, precio, stock, categoria, id_padre } = req.body;
-    const { error } = await supabase.from('platos').update({ nombre, precio, stock: id_padre ? 0 : stock, categoria, id_padre }).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message }); 
-    req.io.emit('menu_actualizado'); // AVISO DE WEBSOCKET
-    res.json({ message: "Actualizado" });
-};
-
-const eliminarPlato = async (req, res) => {
-    const { error } = await supabase.from('platos').delete().eq('id', req.params.id);
-    if (error) return res.status(500).json({ error: error.message }); 
-    req.io.emit('menu_actualizado'); // AVISO DE WEBSOCKET
-    res.json({ message: "Eliminado" });
-};
-
-const obtenerCategorias = async (req, res) => {
-    const { data, error } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-};
-
-const crearCategoria = async (req, res) => {
-    const { nombre } = req.body;
-    const { data, error } = await supabase.from('categorias').insert([{ nombre }]).select();
-    if (error) return res.status(500).json({ error: error.message }); 
-    req.io.emit('menu_actualizado'); // AVISO DE WEBSOCKET
-    res.json(data[0]);
-};
-
-const eliminarCategoria = async (req, res) => {
-    const { error } = await supabase.from('categorias').delete().eq('id', req.params.id);
-    if (error) return res.status(500).json({ error: error.message });
-    req.io.emit('menu_actualizado'); // AVISO DE WEBSOCKET
-    res.json({ message: "Eliminado" });
-};
-
-const obtenerInventario = async (req, res) => {
+const obtenerPlatos = async (req, res, next) => {
     try {
-        const { data: platos, error } = await supabase.from('platos').select('*').order('categoria', { ascending: true });
-        if (error) throw error;
-
-        const platosPrincipales = platos.filter(p => !p.id_padre);
-        const porciones = platos.filter(p => p.id_padre);
-
-        const platosConAlerta = platosPrincipales.map(plato => ({
-            ...plato,
-            alerta: plato.stock < 5 ? 'CRÍTICO' : plato.stock < 10 ? 'BAJO' : 'NORMAL'
-        }));
-
-        res.json({
-            platos: platosConAlerta,
-            porciones,
-            totalPlatos: platosPrincipales.length,
-            totalPorciones: porciones.length,
-            stockBajo: platosConAlerta.filter(p => p.stock < 10).length,
-            stockCritico: platosConAlerta.filter(p => p.stock < 5).length
-        });
+        const platos = await menuService.listarPlatos();
+        return res.json(platos);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return next(error);
+    }
+};
+
+const crearPlato = async (req, res, next) => {
+    try {
+        const { nombre, precio, stock, categoria, id_padre } = req.body;
+        if (!esTextoValido(nombre)) {
+            return res.status(400).json({ error: 'El nombre del plato solo debe contener texto' });
+        }
+        if (!esMontoPositivoValido(precio)) {
+            return res.status(400).json({ error: 'El precio debe ser un valor positivo con máximo 2 decimales' });
+        }
+        if (!id_padre && !esEnteroNoNegativoValido(stock)) {
+            return res.status(400).json({ error: 'El stock debe ser un número entero no negativo' });
+        }
+
+        const nuevoPlato = await menuService.crearNuevoPlato({ nombre, precio, stock, categoria, id_padre });
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(nuevoPlato);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const actualizarPlato = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { nombre, precio, stock, categoria, id_padre, motivo_auditoria } = req.body;
+
+        if (nombre !== undefined && !esTextoValido(nombre)) {
+            return res.status(400).json({ error: 'El nombre del plato solo debe contener texto' });
+        }
+        if (precio !== undefined && !esMontoPositivoValido(precio)) {
+            return res.status(400).json({ error: 'El precio debe ser un valor positivo con máximo 2 decimales' });
+        }
+        if (stock !== undefined && !id_padre && !esEnteroNoNegativoValido(stock)) {
+            return res.status(400).json({ error: 'El stock debe ser un número entero no negativo' });
+        }
+
+        const resultado = await menuService.actualizarPlatoExistente(id, {
+            nombre,
+            precio,
+            stock,
+            categoria,
+            id_padre,
+            motivo_auditoria
+        });
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(resultado);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const reiniciarStock = async (req, res, next) => {
+    try {
+        const { confirmacion } = req.body || {};
+        if (confirmacion !== 'REINICIAR') {
+            return res.status(400).json({ error: 'Confirmación inválida. Debe escribir REINICIAR.' });
+        }
+
+        const resultado = await menuService.reiniciarTodoElStock();
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(resultado);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const eliminarPlato = async (req, res, next) => {
+    try {
+        const resultado = await menuService.eliminarPlatoPorId(req.params.id);
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(resultado);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const obtenerCategorias = async (req, res, next) => {
+    try {
+        const categorias = await menuService.listarCategorias();
+        return res.json(categorias);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const crearCategoria = async (req, res, next) => {
+    try {
+        const { nombre } = req.body;
+        if (!nombre || ! String(nombre).trim()) {
+            return res.status(400).json({ error: 'El nombre de la categoría es requerido' });
+        }
+        const categoria = await menuService.crearNuevaCategoria(nombre);
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(categoria);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const eliminarCategoria = async (req, res, next) => {
+    try {
+        const resultado = await menuService.eliminarCategoriaPorId(req.params.id);
+        if (req.io) req.io.emit('menu_actualizado');
+        return res.json(resultado);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const obtenerInventario = async (req, res, next) => {
+    try {
+        const resumen = await menuService.calcularResumenInventario();
+        return res.json(resumen);
+    } catch (error) {
+        return next(error);
     }
 };
 
 module.exports = {
-    obtenerPlatos, crearPlato, actualizarPlato, eliminarPlato,
-    obtenerCategorias, crearCategoria, eliminarCategoria, obtenerInventario
+    obtenerPlatos,
+    crearPlato,
+    actualizarPlato,
+    reiniciarStock,
+    eliminarPlato,
+    obtenerCategorias,
+    crearCategoria,
+    eliminarCategoria,
+    obtenerInventario
 };

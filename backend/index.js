@@ -1,30 +1,27 @@
-const express = require('express');
-const cors = require('cors');
-const { Server } = require("socket.io");
 const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
+const { createApp } = require('./src/app');
 
-const app = express();
-const server = http.createServer(app); 
-const io = new Server(server, { cors: { origin: "*" } });
-
-app.use(cors());
-app.use(express.json());
-
-// Inyectar io globalmente para los controllers
-app.use((req, res, next) => {
-    req.io = io;
-    next();
+process.on('uncaughtException', (err) => {
+    if (err.code === 'ERR_HTTP_HEADERS_SENT') {
+        return;
+    }
+    console.error('Error no capturado:', err);
 });
 
-// --- RUTAS BASE ---
-app.get('/', (req, res) => { res.send('Servidor Restaurante V5.0 (Clean Architecture)'); });
+const server = http.createServer();
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+const app = createApp(io);
 
-// --- ENRUTADORES ---
-app.use('/ordenes', require('./src/routes/orderRoutes'));
-app.use('/', require('./src/routes/menuRoutes'));
-app.use('/', require('./src/routes/reportRoutes'));
-app.use('/repartidor', require('./src/routes/deliveryRoutes'));
+server.on('request', app);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`Servidor ONLINE en puerto ${PORT}`); });
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor ONLINE en puerto ${PORT}`);
+});

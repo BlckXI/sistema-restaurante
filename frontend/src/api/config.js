@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-// import.meta.env.PROD es una variable mágica de Vite. 
-// Es 'true' cuando se sube a Vercel/producción y 'false' cuando usas localhost.
-export const URL_BACKEND = import.meta.env.PROD 
-    ? 'https://api-restaurante-yawj.onrender.com' 
-    : 'http://localhost:3000';
+export const URL_BACKEND = import.meta.env.VITE_BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
 export const COSTO_DOMICILIO = 1.00;
 

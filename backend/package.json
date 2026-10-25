@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "npx eslint --config eslint.config.js .",
+    "test": "node --test ../tests/financeService.test.js"
   },
   "keywords": [],
   "author": "",

@@ -8,8 +8,9 @@ router.delete('/gastos/:id', reportController.eliminarGasto);
 router.post('/ingresos-extras', reportController.agregarIngresoExtra);
 router.delete('/ingresos-extras/:id', reportController.eliminarIngresoExtra);
 
-// Cierres y Reporte de Hoy
+// Cierres, Reporte de Hoy y Movimientos Paginados
 router.get('/reportes/hoy', reportController.obtenerReporteHoy);
+router.get('/reportes/movimientos', reportController.obtenerMovimientosHoy);
 router.post('/cierre', reportController.guardarCierre);
 
 // Reportes Avanzados

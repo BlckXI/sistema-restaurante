@@ -1,22 +1,46 @@
 {
   "name": "sistema-restaurante-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "backend/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:frontend",
+    "start": "node backend/index.js",
+    "dev": "npm run build:frontend && node backend/index.js",
+    "lint": "npx eslint --config backend/eslint.config.js backend/ && npm --prefix frontend run lint",
+    "test": "node --test tests/financeService.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Sistema de gestión para restaurante D' La Casa",
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
+    "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "pg": "^8.16.3",
-    "socket.io": "^4.8.1"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.22",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.1",
+    "vite": "^7.2.4"
   }
 }
