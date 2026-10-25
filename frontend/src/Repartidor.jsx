@@ -158,83 +158,113 @@ export default function Repartidor() {
                         </div>
                     )}
 
-                    {pedidos.map(orden => (
-                        <div
-                            key={orden.id}
-                            className="w-full bg-white border-l-8 border-orange-500 rounded-xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 flex flex-col justify-between"
-                        >
-                            <div>
-                                <div className="flex justify-between items-start gap-2 mb-3">
-                                    <div className="min-w-0">
-                                        <span className="bg-slate-800 text-white text-xs font-bold px-2.5 py-1 rounded-md inline-block">
-                                            Ticket #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
-                                        </span>
-                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mt-1.5 break-words">
-                                            {orden.cliente}
-                                        </h3>
+                    {pedidos.map(orden => {
+                        const esPagadoTransferencia = orden.metodo_pago === 'transferencia';
+
+                        return (
+                            <div
+                                key={orden.id}
+                                className={`w-full bg-white border-l-8 rounded-xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 flex flex-col justify-between ${
+                                    esPagadoTransferencia ? 'border-emerald-500' : 'border-orange-500'
+                                }`}
+                            >
+                                <div>
+                                    <div className="flex justify-between items-start gap-2 mb-3">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <span className="bg-slate-800 text-white text-xs font-bold px-2.5 py-1 rounded-md inline-block">
+                                                    Ticket #{orden.numero_diario > 0 ? orden.numero_diario : orden.id}
+                                                </span>
+                                                {esPagadoTransferencia ? (
+                                                    <span className="bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-md inline-block shadow-sm">
+                                                        PAGADO (TRANSFERENCIA)
+                                                    </span>
+                                                ) : (
+                                                    <span className="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-md inline-block shadow-sm">
+                                                        POR COBRAR (EFECTIVO)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <h3 className="text-lg sm:text-xl font-bold text-slate-900 mt-1.5 break-words">
+                                                {orden.cliente}
+                                            </h3>
+                                        </div>
+                                        {orden.hora_programada && (
+                                            <div className="text-right bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 shrink-0">
+                                                <p className="text-[10px] text-amber-700 font-bold uppercase">Entrega</p>
+                                                <p className="font-bold text-slate-900 text-sm">{orden.hora_programada}</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    {orden.hora_programada && (
-                                        <div className="text-right bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 shrink-0">
-                                            <p className="text-[10px] text-amber-700 font-bold uppercase">Entrega</p>
-                                            <p className="font-bold text-slate-900 text-sm">{orden.hora_programada}</p>
+
+                                    <div className="mb-3.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                            Dirección de Entrega
+                                        </p>
+                                        <p className="text-base sm:text-lg font-semibold text-slate-900 break-words mt-1">
+                                            {orden.direccion}
+                                        </p>
+
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                orden.direccion || ''
+                                            )}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-sky-700 text-xs sm:text-sm font-bold hover:text-sky-800 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 mt-2.5"
+                                        >
+                                            Ver en Mapa
+                                        </a>
+                                    </div>
+
+                                    {orden.comentarios && orden.comentarios.trim() !== '' && (
+                                        <div className="mb-3.5 bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-lg text-sm break-words">
+                                            <span className="font-bold text-amber-700 text-xs block mb-0.5">
+                                                NOTAS DEL CLIENTE:
+                                            </span>
+                                            <p className="text-slate-500 font-semibold">{orden.comentarios}</p>
                                         </div>
                                     )}
-                                </div>
 
-                                <div className="mb-3.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
-                                        Dirección de Entrega
-                                    </p>
-                                    <p className="text-base sm:text-lg font-semibold text-slate-900 break-words mt-1">
-                                        {orden.direccion}
-                                    </p>
-
-                                    <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                            orden.direccion || ''
-                                        )}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-1.5 text-sky-700 text-xs sm:text-sm font-bold hover:text-sky-800 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 mt-2.5"
-                                    >
-                                        Ver en Mapa
-                                    </a>
-                                </div>
-
-                                {orden.comentarios && orden.comentarios.trim() !== '' && (
-                                    <div className="mb-3.5 bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-lg text-sm break-words">
-                                        <span className="font-bold text-amber-700 text-xs block mb-0.5">
-                                            NOTAS DEL CLIENTE:
-                                        </span>
-                                        <p className="text-slate-500 font-semibold">{orden.comentarios}</p>
-                                    </div>
-                                )}
-
-                                <div className="flex flex-wrap justify-between items-center gap-2 mb-4 pt-2 border-t border-slate-100">
-                                    <a
-                                        href={`tel:${orden.telefono}`}
-                                        className="flex items-center gap-2 text-slate-900 font-bold bg-slate-100 px-3.5 py-2 rounded-lg hover:bg-slate-200 text-xs sm:text-sm transition"
-                                    >
-                                        Tel: {orden.telefono || 'Sin número'}
-                                    </a>
-                                    <div className="text-right">
-                                        <p className="text-[11px] text-slate-500 uppercase font-bold">Cobrar</p>
-                                        <p className="text-xl sm:text-2xl font-bold text-slate-900 leading-none">
-                                            ${(orden.total || 0).toFixed(2)}
-                                        </p>
+                                    <div className="flex flex-wrap justify-between items-center gap-2 mb-4 pt-2 border-t border-slate-100">
+                                        <a
+                                            href={`tel:${orden.telefono}`}
+                                            className="flex items-center gap-2 text-slate-900 font-bold bg-slate-100 px-3.5 py-2 rounded-lg hover:bg-slate-200 text-xs sm:text-sm transition"
+                                        >
+                                            Tel: {orden.telefono || 'Sin número'}
+                                        </a>
+                                        {esPagadoTransferencia ? (
+                                            <div className="text-right bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                                                <p className="text-[11px] text-emerald-700 uppercase font-black">
+                                                    PAGADO (NO COBRAR)
+                                                </p>
+                                                <p className="text-sm sm:text-base font-bold text-emerald-600 leading-tight">
+                                                    Transferencia (${(orden.total || 0).toFixed(2)})
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="text-right">
+                                                <p className="text-[11px] text-amber-600 uppercase font-bold">
+                                                    Por Cobrar en Efectivo
+                                                </p>
+                                                <p className="text-xl sm:text-2xl font-bold text-slate-900 leading-none">
+                                                    ${(orden.total || 0).toFixed(2)}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => solicitarEntrega(orden.id)}
+                                    className="w-full bg-emerald-500 text-white font-bold py-3.5 rounded-xl shadow hover:bg-emerald-600 transition flex justify-center items-center text-sm sm:text-base active:scale-[0.99]"
+                                >
+                                    MARCAR COMO ENTREGADO
+                                </button>
                             </div>
-
-                            <button
-                                type="button"
-                                onClick={() => solicitarEntrega(orden.id)}
-                                className="w-full bg-emerald-500 text-white font-bold py-3.5 rounded-xl shadow hover:bg-emerald-600 transition flex justify-center items-center text-sm sm:text-base active:scale-[0.99]"
-                            >
-                                MARCAR COMO ENTREGADO
-                            </button>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -247,33 +277,49 @@ export default function Repartidor() {
                         </span>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left min-w-[420px]">
+                        <table className="w-full text-left min-w-[480px]">
                             <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
                                 <tr>
                                     <th className="p-3">Hora</th>
                                     <th className="p-3">Cliente</th>
                                     <th className="p-3">Dirección</th>
-                                    <th className="p-3 text-right">Cobrado</th>
+                                    <th className="p-3 text-right">Estado de Pago / Monto</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
-                                {historial.map(orden => (
-                                    <tr key={orden.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="p-3 text-xs sm:text-sm text-slate-500 font-mono whitespace-nowrap">
-                                            {new Date(orden.created_at).toLocaleTimeString([], {
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </td>
-                                        <td className="p-3 font-bold text-slate-900">{orden.cliente}</td>
-                                        <td className="p-3 text-xs sm:text-sm text-slate-500 max-w-[200px] truncate">
-                                            {orden.direccion}
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-emerald-600 whitespace-nowrap">
-                                            ${(orden.total || 0).toFixed(2)}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {historial.map(orden => {
+                                    const esPagadoTransferencia = orden.metodo_pago === 'transferencia';
+                                    return (
+                                        <tr key={orden.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 text-xs sm:text-sm text-slate-500 font-mono whitespace-nowrap">
+                                                {new Date(orden.created_at).toLocaleTimeString([], {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </td>
+                                            <td className="p-3 font-bold text-slate-900">{orden.cliente}</td>
+                                            <td className="p-3 text-xs sm:text-sm text-slate-500 max-w-[200px] truncate">
+                                                {orden.direccion}
+                                            </td>
+                                            <td className="p-3 text-right whitespace-nowrap">
+                                                <div className="inline-flex items-center justify-end gap-2">
+                                                    <span
+                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                                            esPagadoTransferencia
+                                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                                        }`}
+                                                    >
+                                                        {esPagadoTransferencia ? 'PAGADO (TRANSFERENCIA)' : 'COBRADO (EFECTIVO)'}
+                                                    </span>
+                                                    <span className="font-bold text-emerald-600">
+                                                        ${(orden.total || 0).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                                 {historial.length === 0 && (
                                     <tr>
                                         <td colSpan="4" className="p-8 text-center text-slate-500 italic">
