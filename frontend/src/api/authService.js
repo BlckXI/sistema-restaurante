@@ -17,8 +17,10 @@ const esTokenInvalidoEnProduccion = (token) => {
         return true;
     }
     const esBackendRemoto = URL_BACKEND.includes('onrender.com') || URL_BACKEND.includes('supabase.co');
-    if (esBackendRemoto && token === 'mock-session-token') {
-        return true;
+    if (esBackendRemoto) {
+        if (token === 'mock-session-token' || String(token).split('.').length !== 3) {
+            return true;
+        }
     }
     return false;
 };

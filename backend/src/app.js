@@ -26,6 +26,7 @@ const esJwtExpiradoOInvalido = (token) => {
         const partes = String(token || '').split('.');
         if (partes.length !== 3) return true;
         const payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8'));
+        if (payload.role && payload.role !== 'authenticated') return true;
         if (!payload.exp) return false;
         const ahoraSegundos = Math.floor(Date.now() / 1000);
         return payload.exp <= ahoraSegundos + 60;

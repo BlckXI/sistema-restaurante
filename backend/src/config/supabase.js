@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const requestTokenStorage = new AsyncLocalStorage();
 let cachedSession = null;
+let lastAccessToken = null;
 
 function createMockSupabase() {
     console.warn('[AI Studio] SUPABASE_URL / SUPABASE_KEY not configured — using in-memory store');
@@ -158,6 +159,7 @@ function createMockSupabase() {
         isMock: true,
         runWithToken: (_token, callback) => callback(),
         getActiveToken: () => 'mock-session-token',
+        setLastAccessToken: () => {},
         setCachedSession: () => {},
         getCachedSession: () => null,
         from: (table) => new QueryBuilder(table),
@@ -205,37 +207,87 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
         if (store && store.accessToken) {
             return store.accessToken;
         }
+        if (lastAccessToken) {
+            return lastAccessToken;
+        }
         if (cachedSession && cachedSession.access_token) {
             return cachedSession.access_token;
         }
         return null;
     };
 
+    const customAuthenticatedFetch = async (input, init = {}) => {
+        const headers = new Headers(init.headers || {});
+        headers.set('apikey', process.env.SUPABASE_KEY);
+        const token = getActiveToken();
+        if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        }
+        return fetch(input, { ...init, headers });
+    };
+
     const dbClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
-        accessToken: async () => getActiveToken()
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        },
+        global: {
+            fetch: customAuthenticatedFetch
+        }
     });
+
+    const syncRestHeaders = () => {
+        const token = getActiveToken();
+        if (token && dbClient.rest && dbClient.rest.headers) {
+            if (typeof dbClient.rest.headers.set === 'function') {
+                dbClient.rest.headers.set('Authorization', `Bearer ${token}`);
+            } else {
+                dbClient.rest.headers.Authorization = `Bearer ${token}`;
+            }
+        }
+    };
 
     supabase = {
         isMock: false,
         runWithToken: (accessToken, callback) => {
+            if (accessToken) {
+                lastAccessToken = accessToken;
+            }
             return requestTokenStorage.run({ accessToken }, callback);
         },
         getActiveToken,
+        setLastAccessToken: (token) => {
+            if (token) {
+                lastAccessToken = token;
+            }
+        },
         setCachedSession: (session) => {
             if (session && session.access_token) {
                 cachedSession = session;
+                lastAccessToken = session.access_token;
             }
         },
         getCachedSession: () => cachedSession,
-        from: (table) => dbClient.from(table),
-        rpc: (fn, args, options) => dbClient.rpc(fn, args, options),
-        schema: (name) => dbClient.schema(name),
+        from: (table) => {
+            syncRestHeaders();
+            return dbClient.from(table);
+        },
+        rpc: (fn, args, options) => {
+            syncRestHeaders();
+            return dbClient.rpc(fn, args, options);
+        },
+        schema: (name) => {
+            syncRestHeaders();
+            return dbClient.schema(name);
+        },
         auth: {
             signInWithPassword: async ({ email, password }) => {
                 const authClient = createStatelessAuthClient();
                 const result = await authClient.auth.signInWithPassword({ email, password });
                 if (!result.error && result.data?.session?.access_token) {
                     cachedSession = result.data.session;
+                    lastAccessToken = result.data.session.access_token;
                 }
                 return result;
             },
@@ -244,6 +296,7 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
                 const result = await authClient.auth.refreshSession({ refresh_token });
                 if (!result.error && result.data?.session?.access_token) {
                     cachedSession = result.data.session;
+                    lastAccessToken = result.data.session.access_token;
                 }
                 return result;
             },
