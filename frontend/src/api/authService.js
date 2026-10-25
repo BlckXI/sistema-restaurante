@@ -1,20 +1,23 @@
-import { apiClient } from './config';
+import { apiClient, AUTH_STORAGE_KEY, LEGACY_AUTH_STORAGE_KEY } from './config';
 
-const STORAGE_KEY = 'dlacasa_auth_session_v2';
-const LEGACY_STORAGE_KEY = 'dlacasa_auth_session';
 const listeners = new Set();
 
 const notifyListeners = (session) => {
     listeners.forEach(cb => cb(session));
 };
 
+if (typeof window !== 'undefined') {
+    window.addEventListener('dlacasa_force_logout', () => {
+        notifyListeners(null);
+    });
+}
+
 export const authService = {
     getSession: () => {
         try {
-            // Eliminar cualquier sesión automática antigua que se haya guardado sin login real
-            localStorage.removeItem(LEGACY_STORAGE_KEY);
+            localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
 
-            const raw = localStorage.getItem(STORAGE_KEY);
+            const raw = localStorage.getItem(AUTH_STORAGE_KEY);
             if (!raw) return null;
 
             const parsed = JSON.parse(raw);
@@ -25,7 +28,7 @@ export const authService = {
                 parsed.access_token === 'session-token' ||
                 !parsed.user?.email
             ) {
-                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(AUTH_STORAGE_KEY);
                 return null;
             }
             return parsed;
@@ -46,8 +49,8 @@ export const authService = {
         }
         const session = data.session;
         try {
-            localStorage.removeItem(LEGACY_STORAGE_KEY);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+            localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
         } catch {
             // Ignorar errores de escritura
         }
@@ -60,8 +63,8 @@ export const authService = {
             await apiClient.post('/auth/logout');
         } finally {
             try {
-                localStorage.removeItem(LEGACY_STORAGE_KEY);
-                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+                localStorage.removeItem(AUTH_STORAGE_KEY);
             } catch {
                 // Ignorar errores de limpieza
             }

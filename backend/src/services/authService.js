@@ -14,15 +14,9 @@ const iniciarSesion = async (email, password) => {
 };
 
 /**
- * Cierra la sesión activa en Supabase.
+ * Cierra la sesión del dispositivo cliente sin invalidar el cliente compartido de base de datos del servidor.
  */
 const cerrarSesion = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-        const err = new Error(error.message);
-        err.statusCode = 400;
-        throw err;
-    }
     return { message: 'Sesión cerrada correctamente' };
 };
 

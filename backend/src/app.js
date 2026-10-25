@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const supabase = require('./config/supabase');
 
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
@@ -14,9 +15,20 @@ const deliveryRoutes = require('./routes/deliveryRoutes');
  */
 const errorHandler = (err, req, res, _next) => {
     if (res.headersSent) return;
-    const statusCode = err.statusCode || 500;
-    const message = err.message || 'Error interno del servidor';
-    console.error(`[Error ${statusCode}] ${req.method} ${req.originalUrl}: ${message}`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    const rawMessage = err.message || 'Error interno del servidor';
+    const isRlsOrJwtError =
+        rawMessage.includes('row-level security policy') ||
+        rawMessage.includes('JWT expired') ||
+        rawMessage.includes('invalid JWT');
+
+    const statusCode = isRlsOrJwtError ? 401 : (err.statusCode || 500);
+    const message = isRlsOrJwtError
+        ? 'Sesión de base de datos expirada. Por favor, inicie sesión nuevamente.'
+        : rawMessage;
+
+    console.error(`[Error ${statusCode}] ${req.method} ${req.originalUrl}: ${rawMessage}`);
     res.status(statusCode).json({ error: message });
 };
 
@@ -34,12 +46,64 @@ const createApp = (io) => {
         next();
     });
 
-    app.use(cors());
+    app.use(
+        cors({
+            origin: '*',
+            methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token']
+        })
+    );
     app.use(express.json());
 
     app.use((req, _res, next) => {
         req.io = io;
         next();
+    });
+
+    // Restaurar y verificar sesión autenticada en Supabase tras reinicios del contenedor en Render
+    app.use(async (req, res, next) => {
+        const esRutaPublica =
+            req.path === '/' ||
+            req.path === '/health' ||
+            req.path.startsWith('/auth') ||
+            req.method === 'OPTIONS';
+
+        if (esRutaPublica || typeof supabase?.auth?.getSession !== 'function') {
+            return next();
+        }
+
+        try {
+            const { data: current } = await supabase.auth.getSession();
+            let sesionActiva = current?.session || null;
+
+            if (!sesionActiva) {
+                const authHeader = req.headers.authorization;
+                const refreshToken = req.headers['x-refresh-token'];
+                if (authHeader && authHeader.startsWith('Bearer ') && refreshToken) {
+                    const accessToken = authHeader.slice(7).trim();
+                    if (
+                        accessToken &&
+                        accessToken !== 'mock-session-token' &&
+                        accessToken !== 'local-session-token'
+                    ) {
+                        const { data: restaurada } = await supabase.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: String(refreshToken)
+                        });
+                        sesionActiva = restaurada?.session || null;
+                    }
+                }
+            }
+
+            if (!sesionActiva) {
+                return res.status(401).json({
+                    error: 'Sesión no iniciada o expirada en el servidor. Por favor, inicie sesión.'
+                });
+            }
+        } catch (err) {
+            console.warn('Aviso al sincronizar sesión de Supabase:', err.message);
+        }
+        return next();
     });
 
     // Enrutadores de API
