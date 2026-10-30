@@ -5,7 +5,8 @@ const {
     esTextoValido,
     esTextoOpcionalValido,
     esMontoPositivoValido,
-    esEnteroPositivoValido
+    esEnteroPositivoValido,
+    esEnteroNoNegativoValido
 } = require('../backend/src/utils/validators');
 
 test('Cálculo financiero diario con efectivo, transferencias, domicilios, gastos e ingresos extras', () => {
@@ -137,14 +138,12 @@ test('Validadores de entrada rechazan símbolos, negativos y decimales inválido
     assert.equal(esEnteroPositivoValido(-3), false);
     assert.equal(esEnteroPositivoValido(4.5), false);
 
-    const { esEnteroNoNegativoValido } = require('../backend/src/utils/validators');
     assert.equal(esEnteroNoNegativoValido(0), true);
     assert.equal(esEnteroNoNegativoValido('0'), true);
     assert.equal(esEnteroNoNegativoValido(25), true);
     assert.equal(esEnteroNoNegativoValido(-1), false);
     assert.equal(esEnteroNoNegativoValido('abc'), false);
 });
-
 
 test('Cálculo de orden en orderService contempla envíos a domicilio y consumo personal', () => {
     const { calcularTotalOrden } = require('../backend/src/services/orderService');
@@ -157,6 +156,77 @@ test('Cálculo de orden en orderService contempla envíos a domicilio y consumo 
     assert.equal(calcularTotalOrden({ detalles, tipo_entrega: 'domicilio' }), 15.0);
     assert.equal(calcularTotalOrden({ detalles, tipo_entrega: 'domicilio', es_extra: true }), 14.0);
     assert.equal(calcularTotalOrden({ detalles, tipo_entrega: 'personal' }), 0);
+});
+
+test('procesarNuevaOrden ignora total adulterado del cliente, descuenta stock por id_padre y anularOrdenYRestaurarStock lo restaura', async () => {
+    const supabase = require('../backend/src/config/supabase');
+    const {
+        procesarNuevaOrden,
+        anularOrdenYRestaurarStock
+    } = require('../backend/src/services/orderService');
+
+    if (!supabase.isMock) {
+        // Si corre contra una instancia real configurada por env, omitimos mutar datos de producción
+        return;
+    }
+
+    // Insertar un plato padre y una porción hija vinculada por id_padre en el store en memoria
+    const { data: platoPadre } = await supabase
+        .from('platos')
+        .insert({ nombre: 'Pollo Entero Test', precio: 12.0, stock: 10, categoria: 'Combos', id_padre: null })
+        .select()
+        .single();
+
+    const { data: platoHijo } = await supabase
+        .from('platos')
+        .insert({ nombre: 'Porcion Pollo Test', precio: 4.0, stock: 0, categoria: 'Combos', id_padre: platoPadre.id })
+        .select()
+        .single();
+
+    // Crear orden enviando un precio y total adulterados ($0.01) desde el cliente
+    const ordenCreada = await procesarNuevaOrden({
+        cliente: 'Cliente Prueba',
+        total: 0.01,
+        tipo_entrega: 'domicilio',
+        es_extra: false,
+        metodo_pago: 'efectivo',
+        detalles: [
+            { id: platoHijo.id, nombre: 'Porcion Pollo Test', precio: 0.01, cantidad: 3 }
+        ]
+    });
+
+    // El servidor debe calcular: (3 * $4.00 precio real de BD) + $1.00 domicilio = $13.00
+    assert.equal(ordenCreada.total, 13.0);
+
+    // El stock del plato padre (10) debe haberse reducido a 7
+    const { data: padreDespues } = await supabase
+        .from('platos')
+        .select('stock')
+        .eq('id', platoPadre.id)
+        .single();
+    assert.equal(padreDespues.stock, 7);
+
+    // Intentar pedir más del stock disponible (8 > 7) debe lanzar error 400 y no dejar stock negativo
+    await assert.rejects(
+        () =>
+            procesarNuevaOrden({
+                cliente: 'Cliente Exceso',
+                tipo_entrega: 'mesa',
+                detalles: [{ id: platoHijo.id, cantidad: 8 }]
+            }),
+        (err) => err.statusCode === 400 && err.message.includes('Stock insuficiente')
+    );
+
+    // Anular la primera orden debe restaurar el stock del plato padre a 10
+    const ordenAnulada = await anularOrdenYRestaurarStock(ordenCreada.id);
+    assert.equal(ordenAnulada.estado, 'anulado');
+
+    const { data: padreRestaurado } = await supabase
+        .from('platos')
+        .select('stock')
+        .eq('id', platoPadre.id)
+        .single();
+    assert.equal(padreRestaurado.stock, 10);
 });
 
 test('Paginación de historial de movimientos calcula rangos y páginas correctamente', () => {
@@ -180,26 +250,24 @@ test('Paginación de historial de movimientos calcula rangos y páginas correcta
     assert.equal(pagina3.to, 29);
 });
 
-test('errorHandler distingue 401 sin token de 403 con token ante errores RLS', () => {
-    const { errorHandler } = require('../backend/src/app');
+test('errorHandler y requireRole aplican códigos HTTP 401 y 403 correctamente', () => {
+    const { errorHandler } = require('../backend/src/middlewares/errorHandler');
+    const { requireRole } = require('../backend/src/middlewares/roles');
 
-    const crearResMock = () => {
-        const res = {
-            headersSent: false,
-            statusCode: 200,
-            payload: null,
-            setHeader() {},
-            status(code) {
-                this.statusCode = code;
-                return this;
-            },
-            json(body) {
-                this.payload = body;
-                return this;
-            }
-        };
-        return res;
-    };
+    const crearResMock = () => ({
+        headersSent: false,
+        statusCode: 200,
+        payload: null,
+        setHeader() {},
+        status(code) {
+            this.statusCode = code;
+            return this;
+        },
+        json(body) {
+            this.payload = body;
+            return this;
+        }
+    });
 
     const errRls = new Error('new row violates row-level security policy for table "categorias"');
 
@@ -215,5 +283,20 @@ test('errorHandler distingue 401 sin token de 403 con token ante errores RLS', (
         () => {}
     );
     assert.equal(resConToken.statusCode, 403);
-});
 
+    // Prueba de middleware requireRole('admin')
+    const middlewareAdmin = requireRole('admin');
+    const resRolDenegado = crearResMock();
+    let pasoSiguiente = false;
+    middlewareAdmin({ user: { id: 'u1', role: 'repartidor' } }, resRolDenegado, () => {
+        pasoSiguiente = true;
+    });
+    assert.equal(resRolDenegado.statusCode, 403);
+    assert.equal(pasoSiguiente, false);
+
+    const resRolPermitido = crearResMock();
+    middlewareAdmin({ user: { id: 'u2', role: 'admin' } }, resRolPermitido, () => {
+        pasoSiguiente = true;
+    });
+    assert.equal(pasoSiguiente, true);
+});

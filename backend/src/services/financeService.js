@@ -1,7 +1,8 @@
 const supabase = require('../config/supabase');
 const { getRangoDiario } = require('../utils/dateUtils');
+const { COSTO_DOMICILIO } = require('../config/constants');
 
-const COSTO_DOMICILIO_DEFAULT = 1.0;
+const COSTO_DOMICILIO_DEFAULT = COSTO_DOMICILIO;
 
 /**
  * Procesa de forma pura los registros financieros del día.

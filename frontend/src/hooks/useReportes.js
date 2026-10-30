@@ -142,27 +142,52 @@ export function useReportes() {
     const totalIngresosExtrasUI = parseFloat(datos?.totalIngresosExtras || 0);
     const totalGastosUI = parseFloat(datos?.totalGastos || 0);
 
-    const ventasTransferenciaUI = validOrders
-        .filter(o => o.metodo_pago === 'transferencia')
-        .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
-    const cantidadTransferencias = validOrders.filter(o => o.metodo_pago === 'transferencia').length;
+    const ventasTransferenciaUI =
+        datos?.ventasTransferencia !== undefined
+            ? parseFloat(datos.ventasTransferencia) || 0
+            : validOrders
+                  .filter(o => o.metodo_pago === 'transferencia')
+                  .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
 
-    const ingresosTotalesEfectivoUI = validOrders
-        .filter(o => o.metodo_pago !== 'transferencia')
-        .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const cantidadTransferencias =
+        datos?.cantidadTransferencias !== undefined
+            ? Number(datos.cantidadTransferencias) || 0
+            : validOrders.filter(o => o.metodo_pago === 'transferencia').length;
 
-    const pedidosDomicilio = validOrders.filter(o => o.tipo_entrega === 'domicilio').length;
-    const pedidosDomicilioEfectivo = validOrders.filter(
-        o => o.tipo_entrega === 'domicilio' && o.metodo_pago !== 'transferencia'
-    ).length;
+    const pedidosDomicilio =
+        datos?.pedidosDomicilio !== undefined
+            ? Number(datos.pedidosDomicilio) || 0
+            : validOrders.filter(
+                  o => o.tipo_entrega === 'domicilio' && !String(o.cliente || '').includes('(EXTRA)')
+              ).length;
 
-    const totalDomiciliosUI = pedidosDomicilio * COSTO_DOMICILIO;
-    const totalDomiciliosEfectivoUI = pedidosDomicilioEfectivo * COSTO_DOMICILIO;
-    const ventasEfectivoUI = ingresosTotalesEfectivoUI - totalDomiciliosEfectivoUI;
+    const totalDomiciliosUI =
+        datos?.totalDomicilios !== undefined
+            ? parseFloat(datos.totalDomicilios) || 0
+            : pedidosDomicilio * COSTO_DOMICILIO;
+
+    const totalDomiciliosEfectivoUI =
+        datos?.totalDomiciliosEfectivo !== undefined
+            ? parseFloat(datos.totalDomiciliosEfectivo) || 0
+            : validOrders.filter(
+                  o =>
+                      o.tipo_entrega === 'domicilio' &&
+                      o.metodo_pago !== 'transferencia' &&
+                      !String(o.cliente || '').includes('(EXTRA)')
+              ).length * COSTO_DOMICILIO;
+
+    const ventasEfectivoUI =
+        datos?.ventasEfectivoNeto !== undefined
+            ? parseFloat(datos.ventasEfectivoNeto) || 0
+            : validOrders
+                  .filter(o => o.metodo_pago !== 'transferencia')
+                  .reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) - totalDomiciliosEfectivoUI;
 
     const totalBancoUI = ventasTransferenciaUI;
     const totalEfectivoUI =
-        saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosEfectivoUI - totalGastosUI;
+        datos?.dineroEnCaja !== undefined
+            ? parseFloat(datos.dineroEnCaja) || 0
+            : saldoInicialUI + ventasEfectivoUI + totalIngresosExtrasUI + totalDomiciliosEfectivoUI - totalGastosUI;
 
     const generarPDF = async () => {
         if (!datos) {

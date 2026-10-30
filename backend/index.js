@@ -2,42 +2,25 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 const { createApp } = require('./src/app');
+const { verificarTokenSocket } = require('./src/middlewares/auth');
 
-process.on('uncaughtException', (err) => {
-    if (err.code === 'ERR_HTTP_HEADERS_SENT') {
-        return;
-    }
-    console.error('Error no capturado:', err);
-});
+const corsOrigin = process.env.CORS_ORIGIN || '*';
 
-let app;
-
-const server = http.createServer((req, res) => {
-    if (req.url && req.url.startsWith('/socket.io')) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Refresh-Token');
-        return;
-    }
-    if (app) {
-        app(req, res);
-    }
-});
+const app = createApp();
+const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: '*',
-        methods: ['GET', 'POST', 'OPTIONS']
+        origin: corsOrigin,
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token']
     },
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
     allowEIO3: true
 });
 
-io.engine.on('headers', (headers) => {
-    headers['Access-Control-Allow-Origin'] = '*';
-});
-
-app = createApp(io);
+app.set('io', io);
+io.use(verificarTokenSocket);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
