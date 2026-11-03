@@ -300,3 +300,31 @@ test('errorHandler y requireRole aplican códigos HTTP 401 y 403 correctamente',
     });
     assert.equal(pasoSiguiente, true);
 });
+
+test('Panel de repartidor se limpia automáticamente a las 7:00 PM hora de El Salvador (UTC-6)', async () => {
+    const { getEstadoHorarioRepartidor } = require('../backend/src/utils/dateUtils');
+    const {
+        listarPedidosDomicilioListos,
+        listarHistorialEntregasHoy
+    } = require('../backend/src/services/orderService');
+
+    // 6:59 PM en El Salvador (2026-11-02 18:59:00 SV = 2026-11-03T00:59:00.000Z UTC)
+    const antesDeLas7PM = new Date('2026-11-03T00:59:00.000Z');
+    const estadoAntes = getEstadoHorarioRepartidor(antesDeLas7PM);
+    assert.equal(estadoAntes.fechaStr, '2026-11-02');
+    assert.equal(estadoAntes.horaElSalvador, 18);
+    assert.equal(estadoAntes.enHorarioCorte, false);
+
+    // 7:00 PM exactas en El Salvador (2026-11-02 19:00:00 SV = 2026-11-03T01:00:00.000Z UTC)
+    const aLas7PM = new Date('2026-11-03T01:00:00.000Z');
+    const estadoCorte = getEstadoHorarioRepartidor(aLas7PM);
+    assert.equal(estadoCorte.fechaStr, '2026-11-02');
+    assert.equal(estadoCorte.horaElSalvador, 19);
+    assert.equal(estadoCorte.enHorarioCorte, true);
+
+    const pedidosEnCorte = await listarPedidosDomicilioListos(aLas7PM);
+    const historialEnCorte = await listarHistorialEntregasHoy(aLas7PM);
+    assert.deepEqual(pedidosEnCorte, []);
+    assert.deepEqual(historialEnCorte, []);
+});
+

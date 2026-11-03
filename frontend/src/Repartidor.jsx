@@ -1,28 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { deliveryService } from './api/deliveryService';
 import { orderService } from './api/orderService';
 import { socketClient } from './api/socketService';
+
+// Coordinado con hora de El Salvador (UTC-6 fijo): limpieza automática a las 7:00 PM (19:00 horas)
+const OFFSET_EL_SALVADOR_MS = 6 * 60 * 60 * 1000;
+const HORA_CORTE_REPARTIDOR_SV = 19;
+
+const esHorarioCorte7PmElSalvador = (ahora = new Date()) => {
+    const fechaSV = new Date(ahora.getTime() - OFFSET_EL_SALVADOR_MS);
+    return fechaSV.getUTCHours() >= HORA_CORTE_REPARTIDOR_SV;
+};
 
 export default function Repartidor() {
     const [pestana, setPestana] = useState('pendientes');
     const [pedidos, setPedidos] = useState([]);
     const [historial, setHistorial] = useState([]);
+    const [corte7PmActivo, setCorte7PmActivo] = useState(() => esHorarioCorte7PmElSalvador());
 
     const [notificacion, setNotificacion] = useState(null);
     const [modalEntregar, setModalEntregar] = useState(null);
 
-    const cargarDatos = async () => {
-        try {
-            const resPendientes = await deliveryService.getPedidos();
-            setPedidos(Array.isArray(resPendientes.data) ? resPendientes.data : []);
+    const limpiarPanelPorCorte = useCallback(() => {
+        setPedidos([]);
+        setHistorial([]);
+        setModalEntregar(null);
+    }, []);
 
-            const resHistorial = await deliveryService.getHistorial();
+    const cargarDatos = useCallback(async () => {
+        if (esHorarioCorte7PmElSalvador()) {
+            setCorte7PmActivo(true);
+            limpiarPanelPorCorte();
+            return;
+        }
+
+        setCorte7PmActivo(false);
+        try {
+            const [resPendientes, resHistorial] = await Promise.all([
+                deliveryService.getPedidos(),
+                deliveryService.getHistorial()
+            ]);
+            setPedidos(Array.isArray(resPendientes.data) ? resPendientes.data : []);
             setHistorial(Array.isArray(resHistorial.data) ? resHistorial.data : []);
         } catch {
             setPedidos([]);
             setHistorial([]);
         }
-    };
+    }, [limpiarPanelPorCorte]);
 
     const playNotificationSound = () => {
         const audio = new Audio('https://actions.google.com/sounds/v1/transport_transportation/car_horn.ogg');
@@ -33,6 +57,11 @@ export default function Repartidor() {
         cargarDatos();
 
         const handleOrdenLista = (orden) => {
+            if (esHorarioCorte7PmElSalvador()) {
+                setCorte7PmActivo(true);
+                limpiarPanelPorCorte();
+                return;
+            }
             if (orden.tipo_entrega === 'domicilio') {
                 playNotificationSound();
                 cargarDatos();
@@ -46,11 +75,25 @@ export default function Repartidor() {
         socketClient.on('orden_lista', handleOrdenLista);
         socketClient.on('orden_entregada', handleOrdenEntregada);
 
+        // Verificación periódica para limpiar automáticamente el panel al llegar las 7:00 PM (El Salvador, UTC-6)
+        const intervaloCorte = setInterval(() => {
+            const enCorte = esHorarioCorte7PmElSalvador();
+            setCorte7PmActivo(prev => {
+                if (!prev && enCorte) {
+                    limpiarPanelPorCorte();
+                } else if (prev && !enCorte) {
+                    cargarDatos();
+                }
+                return enCorte;
+            });
+        }, 15000);
+
         return () => {
             socketClient.off('orden_lista', handleOrdenLista);
             socketClient.off('orden_entregada', handleOrdenEntregada);
+            clearInterval(intervaloCorte);
         };
-    }, []);
+    }, [cargarDatos, limpiarPanelPorCorte]);
 
     const solicitarEntrega = (id) => {
         setModalEntregar(id);
@@ -122,7 +165,12 @@ export default function Repartidor() {
             )}
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Panel de Repartidor</h1>
+                <div>
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Panel de Repartidor</h1>
+                    <p className="text-xs text-slate-500">
+                        Limpieza automática diaria a las 7:00 PM (hora de El Salvador, UTC-6)
+                    </p>
+                </div>
 
                 <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
                     <button
@@ -154,7 +202,11 @@ export default function Repartidor() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {pedidos.length === 0 && (
                         <div className="col-span-full text-center py-14 bg-white rounded-xl border border-dashed border-slate-300 px-4">
-                            <p className="text-slate-500 font-semibold">Todo entregado. Esperando a cocina...</p>
+                            <p className="text-slate-500 font-semibold">
+                                {corte7PmActivo
+                                    ? 'Panel limpiado automáticamente a las 7:00 PM (hora de El Salvador).'
+                                    : 'Todo entregado. Esperando a cocina...'}
+                            </p>
                         </div>
                     )}
 
@@ -323,7 +375,9 @@ export default function Repartidor() {
                                 {historial.length === 0 && (
                                     <tr>
                                         <td colSpan="4" className="p-8 text-center text-slate-500 italic">
-                                            Aún no has entregado pedidos hoy.
+                                            {corte7PmActivo
+                                                ? 'Historial limpiado automáticamente a las 7:00 PM (hora de El Salvador).'
+                                                : 'Aún no has entregado pedidos hoy.'}
                                         </td>
                                     </tr>
                                 )}

@@ -41,12 +41,11 @@ const ordenarPedidos = (lista) => {
 };
 
 /**
- * Custom Hook para la gestión de comandas pendientes en Cocina con jerarquía temporal y barra Undo de 3s.
+ * Custom Hook para la gestión de comandas pendientes en Cocina con barra Undo de 3s.
  */
 export function useCocina() {
     const [ordenes, setOrdenes] = useState([]);
     const [cargando, setCargando] = useState(true);
-    const [ahora, setAhora] = useState(() => Date.now());
     const [ordenEnUndo, setOrdenEnUndo] = useState(null);
     const timerUndoRef = useRef(null);
     const audioRef = useRef(new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'));
@@ -67,14 +66,6 @@ export function useCocina() {
         } finally {
             setCargando(false);
         }
-    }, []);
-
-    // Actualizar reloj cada 15 segundos para recalcular el tiempo transcurrido de cada comanda
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setAhora(Date.now());
-        }, 15000);
-        return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
@@ -155,7 +146,6 @@ export function useCocina() {
     return {
         ordenes,
         cargando,
-        ahora,
         ordenEnUndo,
         playNotificationSound,
         terminarOrden,

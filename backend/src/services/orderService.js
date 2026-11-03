@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { COSTO_DOMICILIO } = require('../config/constants');
+const { getRangoDiario, getEstadoHorarioRepartidor } = require('../utils/dateUtils');
 const {
     esTextoValido,
     esTextoOpcionalValido,
@@ -92,7 +93,16 @@ const ajustarStockPlato = async (idPlato, delta) => {
  * Siempre calcula el total en el servidor a partir de los precios reales de la base de datos.
  */
 const procesarNuevaOrden = async (datosOrden) => {
-    const { cliente, detalles, tipo_entrega, direccion, telefono, metodo_pago } = datosOrden;
+    const {
+        cliente,
+        detalles,
+        tipo_entrega,
+        direccion,
+        telefono,
+        comentarios,
+        metodo_pago,
+        hora_programada
+    } = datosOrden;
 
     const esExtra =
         Boolean(datosOrden.es_extra) || String(cliente || '').includes('(EXTRA)');
@@ -180,34 +190,62 @@ const procesarNuevaOrden = async (datosOrden) => {
         ? `${nombreLimpio} (EXTRA)`
         : String(cliente).trim();
 
-    const { data, error } = await supabase
+    const { inicio, fin } = getRangoDiario();
+    const { count } = await supabase
         .from('ordenes')
-        .insert([
-            {
-                cliente: clienteNormalizado,
-                total: totalCalculado,
-                detalles: detallesVerificados,
-                tipo_entrega: tipo_entrega || 'mesa',
-                direccion: direccion ? String(direccion).trim() : null,
-                telefono: telefono ? String(telefono).trim() : null,
-                metodo_pago: metodo_pago || 'efectivo',
-                estado: 'pendiente'
-            }
-        ])
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicio)
+        .lt('created_at', fin);
+
+    const numeroDiario = (typeof count === 'number' ? count : 0) + 1;
+
+    const nuevoRegistro = {
+        cliente: clienteNormalizado,
+        total: totalCalculado,
+        detalles: detallesVerificados,
+        tipo_entrega: tipo_entrega || 'mesa',
+        direccion: direccion ? String(direccion).trim() : null,
+        telefono: telefono ? String(telefono).trim() : null,
+        comentarios: comentarios ? String(comentarios).trim() : null,
+        metodo_pago: metodo_pago || 'efectivo',
+        hora_programada: hora_programada || null,
+        numero_diario: numeroDiario,
+        estado: 'pendiente'
+    };
+
+    let { data, error } = await supabase
+        .from('ordenes')
+        .insert([nuevoRegistro])
         .select();
+
+    // Respaldo por si la tabla en Supabase no tiene columnas opcionales como numero_diario / hora_programada / comentarios
+    if (error) {
+        const {
+            numero_diario: _nd,
+            hora_programada: _hp,
+            comentarios: _com,
+            ...registroBasico
+        } = nuevoRegistro;
+        const retry = await supabase.from('ordenes').insert([registroBasico]).select();
+        data = retry.data;
+        error = retry.error;
+    }
 
     if (error) throw error;
     return data[0];
 };
 
 /**
- * Obtiene la lista de órdenes pendientes de preparación en cocina ordenadas por antigüedad.
+ * Obtiene la lista de órdenes pendientes de preparación en cocina del día actual ordenadas por antigüedad.
  */
-const obtenerOrdenesPendientes = async () => {
+const listarOrdenesPendientesCocina = async () => {
+    const { inicio, fin } = getRangoDiario();
     const { data, error } = await supabase
         .from('ordenes')
         .select('*')
         .eq('estado', 'pendiente')
+        .gte('created_at', inicio)
+        .lt('created_at', fin)
         .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -217,7 +255,7 @@ const obtenerOrdenesPendientes = async () => {
 /**
  * Marca una orden como lista desde el panel de cocina.
  */
-const marcarOrdenCompletada = async (idOrden) => {
+const marcarOrdenLista = async (idOrden) => {
     const { data, error } = await supabase
         .from('ordenes')
         .update({ estado: 'listo' })
@@ -283,13 +321,65 @@ const marcarOrdenEntregada = async (idOrden) => {
     return data?.[0] || null;
 };
 
+/**
+ * Lista los pedidos a domicilio en estado 'listo' para el panel del repartidor.
+ * Se limpia automáticamente a partir de las 7:00 PM hora de El Salvador (UTC-6).
+ */
+const listarPedidosDomicilioListos = async (ahora = new Date()) => {
+    const { inicio, corte7PM, enHorarioCorte } = getEstadoHorarioRepartidor(ahora);
+
+    if (enHorarioCorte) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from('ordenes')
+        .select('*')
+        .eq('tipo_entrega', 'domicilio')
+        .eq('estado', 'listo')
+        .gte('created_at', inicio)
+        .lt('created_at', corte7PM)
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+};
+
+/**
+ * Lista el historial de entregas a domicilio realizadas hoy antes del corte de las 7:00 PM (El Salvador, UTC-6).
+ * Se limpia automáticamente a partir de las 7:00 PM hora de El Salvador.
+ */
+const listarHistorialEntregasHoy = async (ahora = new Date()) => {
+    const { inicio, corte7PM, enHorarioCorte } = getEstadoHorarioRepartidor(ahora);
+
+    if (enHorarioCorte) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from('ordenes')
+        .select('*')
+        .eq('tipo_entrega', 'domicilio')
+        .eq('estado', 'entregado')
+        .gte('created_at', inicio)
+        .lt('created_at', corte7PM)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+};
+
 module.exports = {
     COSTO_DOMICILIO,
     calcularTotalOrden,
     ajustarStockPlato,
     procesarNuevaOrden,
-    obtenerOrdenesPendientes,
-    marcarOrdenCompletada,
+    listarOrdenesPendientesCocina,
+    obtenerOrdenesPendientes: listarOrdenesPendientesCocina,
+    marcarOrdenLista,
+    marcarOrdenCompletada: marcarOrdenLista,
     anularOrdenYRestaurarStock,
-    marcarOrdenEntregada
+    marcarOrdenEntregada,
+    listarPedidosDomicilioListos,
+    listarHistorialEntregasHoy
 };
