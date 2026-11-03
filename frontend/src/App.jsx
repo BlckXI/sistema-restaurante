@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { authService } from './api/authService';
 import MainLayout from './components/layout/MainLayout';
+import { useTema } from './hooks/useTema';
 
 // Lazy Loading de las vistas principales para optimizar el tamaño del bundle inicial
 const Cajero = lazy(() => import('./Cajero'));
@@ -13,14 +14,15 @@ const Login = lazy(() => import('./Login'));
 
 function RouteLoader() {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-slate-500">
-      <div className="w-8 h-8 border-4 border-slate-200 border-t-orange-500 rounded-full animate-spin" />
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-ink-muted">
+      <div className="w-8 h-8 border-4 border-line border-t-brand-accent rounded-full animate-spin" />
       <span className="text-sm font-medium">Cargando módulo...</span>
     </div>
   );
 }
 
 function App() {
+  const { preferencia, elegirTema } = useTema();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -47,19 +49,35 @@ function App() {
     }
   };
 
-  if (loading) return <div className="h-screen bg-slate-50 flex items-center justify-center text-slate-500 animate-pulse">Cargando sistema...</div>;
+  if (loading) {
+    return (
+      <div className="h-screen bg-app flex items-center justify-center text-ink-muted animate-pulse">
+        Cargando sistema...
+      </div>
+    );
+  }
 
   return (
     <HashRouter>
       {!session ? (
-        <Suspense fallback={<div className="h-screen bg-slate-800 flex items-center justify-center text-slate-300">Cargando acceso...</div>}>
+        <Suspense
+          fallback={
+            <div className="h-screen bg-app flex items-center justify-center text-ink-muted">
+              Cargando acceso...
+            </div>
+          }
+        >
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Suspense>
       ) : (
-        <MainLayout onLogout={cerrarSesion}>
+        <MainLayout
+          onLogout={cerrarSesion}
+          preferenciaTema={preferencia}
+          onElegirTema={elegirTema}
+        >
           <Suspense fallback={<RouteLoader />}>
             <Routes>
               <Route path="/" element={<Cajero />} />

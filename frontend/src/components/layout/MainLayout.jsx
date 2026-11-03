@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import SelectorTema from './SelectorTema';
 
 /**
  * Items de navegación principal con iconos SVG limpios (sin emojis)
@@ -54,10 +55,15 @@ const NAV_ITEMS = [
 
 /**
  * MainLayout: Contenedor general responsivo (Mobile First).
- * - Menú izquierdo retraíble (Drawer oculto por defecto) para no ocupar espacio en pantalla.
+ * - Menú izquierdo retraíble (Drawer oculto por defecto) con selector de tema (Sistema / Claro / Oscuro).
  * - En móvil (< md): Barra inferior (Bottom Nav) fija además del menú desplegable.
  */
-export default function MainLayout({ children, onLogout }) {
+export default function MainLayout({
+  children,
+  onLogout,
+  preferenciaTema = 'sistema',
+  onElegirTema = () => {}
+}) {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
   const location = useLocation();
 
@@ -67,7 +73,7 @@ export default function MainLayout({ children, onLogout }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-app text-ink flex flex-col">
       {/* --- FONDO OSCURO (BACKDROP) CUANDO EL SIDEBAR ESTÁ ABIERTO --- */}
       {sidebarAbierto && (
         <div
@@ -79,27 +85,27 @@ export default function MainLayout({ children, onLogout }) {
 
       {/* --- SIDEBAR RETRAÍBLE IZQUIERDO (OCULTO POR DEFECTO) --- */}
       <aside
-        className={`fixed inset-y-0 left-0 w-64 bg-slate-800 text-white z-50 border-r border-slate-700 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 w-64 bg-surface text-ink z-50 border-r border-line shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
           sidebarAbierto ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Menú lateral"
       >
         {/* Cabecera del Sidebar con botón para ocultar */}
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="p-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center font-black text-white text-lg shadow-md">
+            <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center font-black text-white text-lg shadow-sm">
               D
             </div>
             <div>
-              <h1 className="text-base font-bold tracking-tight text-white leading-tight">D' La Casa</h1>
-              <p className="text-[11px] text-slate-400 font-medium">Gestión de Restaurante</p>
+              <h1 className="text-base font-bold tracking-tight text-ink leading-tight">D' La Casa</h1>
+              <p className="text-[11px] text-ink-muted font-medium">Gestión de Restaurante</p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={() => setSidebarAbierto(false)}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-muted transition flex items-center justify-center"
             aria-label="Ocultar menú"
             title="Ocultar menú"
           >
@@ -118,13 +124,13 @@ export default function MainLayout({ children, onLogout }) {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarAbierto(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all ${
+                className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl font-medium text-sm transition-all ${
                   activo
-                    ? 'bg-orange-500 text-white font-bold shadow-md'
-                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-brand text-white font-bold shadow-sm'
+                    : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
                 }`}
               >
-                <span className={activo ? 'text-white' : 'text-slate-400'}>
+                <span className={activo ? 'text-white' : 'text-ink-muted'}>
                   {item.icon}
                 </span>
                 <span>{item.label}</span>
@@ -133,15 +139,21 @@ export default function MainLayout({ children, onLogout }) {
           })}
         </nav>
 
+        {/* Selector de Tema (Sistema / Claro / Oscuro) */}
+        <div className="px-4 py-3 border-t border-line">
+          <p className="text-xs font-semibold text-ink-muted mb-2">Tema de pantalla</p>
+          <SelectorTema preferencia={preferenciaTema} onElegir={onElegirTema} />
+        </div>
+
         {/* Pie del Sidebar: Cerrar Sesión */}
-        <div className="p-4 border-t border-slate-700 bg-slate-900/40">
+        <div className="p-4 border-t border-line bg-surface-muted/60">
           <button
             type="button"
             onClick={() => {
               setSidebarAbierto(false);
               onLogout();
             }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm transition shadow"
+            className="w-full min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 bg-danger hover:opacity-90 text-white font-bold rounded-xl text-sm transition shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -154,14 +166,14 @@ export default function MainLayout({ children, onLogout }) {
       {/* --- ÁREA PRINCIPAL (100% DEL ANCHO DE PANTALLA) --- */}
       <div className="flex-1 flex flex-col w-full min-w-0">
         {/* Barra Superior con botón para desplegar el menú */}
-        <header className="bg-slate-800 text-white sticky top-0 z-30 shadow-md">
+        <header className="bg-surface text-ink border-b border-line sticky top-0 z-30 shadow-sm">
           <div className="px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Botón para abrir/retraer el menú izquierdo */}
               <button
                 type="button"
                 onClick={() => setSidebarAbierto(true)}
-                className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white transition flex items-center justify-center"
+                className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-surface-muted hover:opacity-90 text-ink transition flex items-center justify-center border border-line"
                 aria-label="Abrir menú de navegación"
                 title="Abrir menú"
               >
@@ -171,14 +183,14 @@ export default function MainLayout({ children, onLogout }) {
               </button>
 
               <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center font-black text-white text-sm">
+                <span className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center font-black text-white text-sm">
                   D
                 </span>
                 <div>
-                  <span className="text-[11px] text-slate-400 font-medium block leading-none">
+                  <span className="text-[11px] text-ink-muted font-medium block leading-none">
                     D' La Casa
                   </span>
-                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight leading-tight">
+                  <h2 className="text-base sm:text-lg font-bold text-ink tracking-tight leading-tight">
                     {getTituloActual()}
                   </h2>
                 </div>
@@ -189,7 +201,7 @@ export default function MainLayout({ children, onLogout }) {
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-xs transition"
+              className="min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 bg-danger hover:opacity-90 text-white font-semibold rounded-lg text-xs transition"
               aria-label="Cerrar Sesión"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +219,7 @@ export default function MainLayout({ children, onLogout }) {
 
         {/* --- BOTTOM NAVIGATION BAR MÓVIL (md:hidden) --- */}
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800 border-t border-slate-700 shadow-2xl safe-area-bottom"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface border-t border-line shadow-2xl safe-area-bottom"
           aria-label="Navegación Móvil"
         >
           <div className="grid grid-cols-5 h-16">
@@ -219,12 +231,12 @@ export default function MainLayout({ children, onLogout }) {
                   to={item.path}
                   className={`flex flex-col items-center justify-center py-1 px-1 transition-colors relative ${
                     activo
-                      ? 'text-orange-500 font-bold bg-slate-900/40'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'text-brand-text font-bold bg-surface-muted'
+                      : 'text-ink-muted hover:text-ink'
                   }`}
                 >
                   {activo && (
-                    <span className="absolute top-0 inset-x-3 h-0.5 bg-orange-500 rounded-full" />
+                    <span className="absolute top-0 inset-x-3 h-0.5 bg-brand-accent rounded-full" />
                   )}
                   <div className="p-1">
                     {item.icon}

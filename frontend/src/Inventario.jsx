@@ -162,7 +162,6 @@ export default function Inventario() {
                     setIdPadre(padre.id);
                     setBusquedaPadre(padre.nombre);
                 } else {
-                    // Si el plato padre ya no existe, limpiar la referencia huérfana
                     setIdPadre('');
                     setBusquedaPadre('');
                 }
@@ -332,23 +331,23 @@ export default function Inventario() {
             {/* MODAL DE ELIMINACIÓN */}
             {modalEliminar && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center border border-slate-200">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
+                    <div className="bg-surface rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center border border-line">
+                        <h3 className="text-lg sm:text-xl font-bold text-ink mb-2">
                             ¿Eliminar &quot;{modalEliminar.nombre}&quot;?
                         </h3>
-                        <p className="text-slate-500 text-sm mb-6">Esta acción no se puede deshacer.</p>
+                        <p className="text-ink-muted text-sm mb-6">Esta acción no se puede deshacer.</p>
                         <div className="flex gap-3 justify-center">
                             <button
                                 type="button"
                                 onClick={() => setModalEliminar(null)}
-                                className="flex-1 bg-white text-slate-900 border border-slate-300 font-bold py-2.5 px-4 rounded-lg hover:bg-slate-100 text-sm min-h-[44px]"
+                                className="flex-1 bg-surface text-ink border border-line font-bold py-2.5 px-4 rounded-lg hover:bg-surface-muted text-sm min-h-[44px]"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmarEliminar}
-                                className="flex-1 bg-red-500 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-red-600 shadow-md text-sm min-h-[44px]"
+                                className="flex-1 bg-danger text-white font-bold py-2.5 px-4 rounded-lg hover:opacity-90 shadow-md text-sm min-h-[44px]"
                             >
                                 Sí, Eliminar
                             </button>
@@ -369,7 +368,7 @@ export default function Inventario() {
             {notificacion && (
                 <div
                     className={`fixed top-16 sm:top-5 left-1/2 transform -translate-x-1/2 px-5 py-3 rounded-xl shadow-xl z-50 text-white font-bold text-sm max-w-[90vw] text-center ${
-                        notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-emerald-500'
+                        notificacion.tipo === 'error' ? 'bg-danger' : 'bg-success'
                     }`}
                 >
                     {notificacion.mensaje}
@@ -381,18 +380,18 @@ export default function Inventario() {
                 {/* FORMULARIO DE PLATO */}
                 <div
                     className={`p-4 sm:p-5 rounded-xl shadow-sm border transition-colors ${
-                        idEdicion ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200'
+                        idEdicion ? 'bg-warning-soft border-warning' : 'bg-surface border-line'
                     }`}
                 >
-                    <div className="flex justify-between items-center border-b border-slate-200 pb-2.5 mb-4">
-                        <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                    <div className="flex justify-between items-center border-b border-line pb-2.5 mb-4">
+                        <h2 className="text-lg sm:text-xl font-bold text-ink">
                             {idEdicion ? 'Editando Plato' : 'Nuevo Plato'}
                         </h2>
                         {idEdicion && (
                             <button
                                 type="button"
                                 onClick={cancelarEdicion}
-                                className="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded hover:bg-red-100"
+                                className="text-xs font-bold text-danger-ink bg-danger-soft border border-danger/30 px-2.5 py-1 rounded hover:opacity-90"
                             >
                                 Cancelar edición
                             </button>
@@ -402,7 +401,7 @@ export default function Inventario() {
                         <input
                             type="text"
                             placeholder="Nombre del plato"
-                            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                            className="w-full px-3.5 py-2.5 border border-line rounded-lg text-sm text-ink bg-surface outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px]"
                             value={nombre}
                             onChange={handleNombreChange}
                         />
@@ -412,7 +411,7 @@ export default function Inventario() {
                                 type="text"
                                 inputMode="decimal"
                                 placeholder="Precio $"
-                                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                                className="w-full px-3.5 py-2.5 border border-line rounded-lg text-sm text-ink bg-surface outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px] tabular-nums"
                                 value={precio}
                                 onChange={handlePrecioChange}
                             />
@@ -420,8 +419,8 @@ export default function Inventario() {
                                 type="text"
                                 inputMode="numeric"
                                 placeholder="Stock"
-                                className={`w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm outline-none min-h-[44px] ${
-                                    idPadre ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-900 focus:ring-2 focus:ring-orange-500'
+                                className={`w-full px-3.5 py-2.5 border border-line rounded-lg text-sm outline-none min-h-[44px] tabular-nums ${
+                                    idPadre ? 'bg-surface-muted text-ink-muted cursor-not-allowed' : 'bg-surface text-ink focus:ring-2 focus:ring-brand-accent'
                                 }`}
                                 value={stock}
                                 onChange={handleStockChange}
@@ -431,9 +430,9 @@ export default function Inventario() {
 
                         <div className="space-y-2.5">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Categoría</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-1">Categoría</label>
                                 <select
-                                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg bg-white text-sm text-slate-900 outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                                    className="w-full px-3 py-2.5 border border-line rounded-lg bg-surface text-sm text-ink outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px]"
                                     value={categoria}
                                     onChange={e => setCategoria(e.target.value)}
                                 >
@@ -447,7 +446,7 @@ export default function Inventario() {
                             </div>
 
                             <div className="relative">
-                                <label className="block text-xs font-bold text-sky-600 mb-1">
+                                <label className="block text-xs font-bold text-info-ink mb-1">
                                     Comparte Stock con (Opcional):
                                 </label>
                                 <div className="flex gap-1.5">
@@ -456,8 +455,8 @@ export default function Inventario() {
                                         placeholder="Buscar plato principal..."
                                         className={`w-full px-3 py-2 border rounded-lg text-sm outline-none min-h-[44px] ${
                                             idPadre
-                                                ? 'bg-sky-50 border-sky-400 text-sky-800 font-bold'
-                                                : 'border-slate-300 bg-white text-slate-900'
+                                                ? 'bg-info-soft border-info text-info-ink font-bold'
+                                                : 'border-line bg-surface text-ink'
                                         }`}
                                         value={busquedaPadre}
                                         onChange={e => {
@@ -471,7 +470,7 @@ export default function Inventario() {
                                         <button
                                             type="button"
                                             onClick={limpiarPadre}
-                                            className="bg-red-50 text-red-500 px-3 rounded-lg border border-red-200 hover:bg-red-100 font-bold min-h-[44px]"
+                                            className="bg-danger-soft text-danger-ink px-3 rounded-lg border border-danger/30 hover:opacity-90 font-bold min-h-[44px]"
                                         >
                                             &times;
                                         </button>
@@ -479,19 +478,19 @@ export default function Inventario() {
                                 </div>
 
                                 {mostrarSugerencias && busquedaPadre && !idPadre && (
-                                    <div className="absolute z-20 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto mt-1">
+                                    <div className="absolute z-20 w-full bg-surface border border-line rounded-lg shadow-lg max-h-40 overflow-y-auto mt-1">
                                         {posiblesPadres.length === 0 ? (
-                                            <div className="p-2.5 text-slate-500 text-xs">No se encontraron platos.</div>
+                                            <div className="p-2.5 text-ink-muted text-xs">No se encontraron platos.</div>
                                         ) : (
                                             posiblesPadres.map(p => (
                                                 <button
                                                     key={p.id}
                                                     type="button"
                                                     onClick={() => seleccionarPadre(p)}
-                                                    className="w-full text-left p-2.5 text-sm text-slate-900 hover:bg-orange-50 border-b border-slate-100 last:border-0 flex justify-between items-center"
+                                                    className="w-full text-left p-2.5 text-sm text-ink hover:bg-surface-muted border-b border-line last:border-0 flex justify-between items-center"
                                                 >
                                                     <span className="truncate">{p.nombre}</span>
-                                                    <span className="text-xs text-slate-500 shrink-0 ml-2">
+                                                    <span className="text-xs text-ink-muted shrink-0 ml-2 tabular-nums">
                                                         (Stock: {p.stock})
                                                     </span>
                                                 </button>
@@ -505,8 +504,10 @@ export default function Inventario() {
                         <button
                             type="submit"
                             disabled={cargando}
-                            className={`w-full font-bold py-3 rounded-xl text-white shadow-sm mt-2 transition min-h-[48px] ${
-                                idEdicion ? 'bg-amber-500 hover:bg-amber-600' : 'bg-orange-500 hover:bg-orange-600'
+                            className={`w-full font-bold py-3 rounded-xl shadow-sm mt-2 transition min-h-[48px] ${
+                                idEdicion
+                                    ? 'bg-warning hover:opacity-90 text-slate-900'
+                                    : 'bg-brand hover:bg-brand-hover text-white'
                             }`}
                         >
                             {cargando ? 'GUARDANDO...' : idEdicion ? 'ACTUALIZAR PLATO' : 'GUARDAR PLATO'}
@@ -515,21 +516,21 @@ export default function Inventario() {
                 </div>
 
                 {/* GESTIÓN DE CATEGORÍAS */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                    <h3 className="font-bold text-slate-900 mb-2.5 text-xs uppercase tracking-wider">
+                <div className="bg-surface p-4 rounded-xl shadow-sm border border-line">
+                    <h3 className="font-bold text-ink mb-2.5 text-xs uppercase tracking-wider">
                         Gestionar Categorías
                     </h3>
                     <form onSubmit={crearCategoria} className="flex gap-2 mb-3">
                         <input
                             type="text"
                             placeholder="Nueva Categoría..."
-                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                            className="flex-1 px-3 py-2 border border-line rounded-lg text-sm text-ink bg-surface outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px]"
                             value={nuevaCat}
                             onChange={e => setNuevaCat(e.target.value)}
                         />
                         <button
                             type="submit"
-                            className="bg-emerald-500 text-white px-4 rounded-lg font-bold hover:bg-emerald-600 transition min-h-[44px]"
+                            className="bg-success text-white px-4 rounded-lg font-bold hover:opacity-90 transition min-h-[44px]"
                         >
                             +
                         </button>
@@ -538,13 +539,13 @@ export default function Inventario() {
                         {categorias.map(cat => (
                             <div
                                 key={cat.id}
-                                className="bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 text-xs flex items-center gap-2 shadow-sm"
+                                className="bg-app px-3 py-1.5 rounded-lg border border-line text-xs flex items-center gap-2 shadow-sm"
                             >
-                                <span className="font-medium text-slate-900">{cat.nombre}</span>
+                                <span className="font-medium text-ink">{cat.nombre}</span>
                                 <button
                                     type="button"
                                     onClick={() => solicitarEliminar(cat.id, 'categoria', cat.nombre)}
-                                    className="text-slate-400 hover:text-red-500 font-bold text-sm leading-none"
+                                    className="text-ink-muted hover:text-danger-ink font-bold text-sm leading-none"
                                 >
                                     &times;
                                 </button>
@@ -554,20 +555,17 @@ export default function Inventario() {
                 </div>
 
                 {/* ACCIONES AVANZADAS / PROTEGIDAS DE INVENTARIO */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                        <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                            Acciones Avanzadas de Stock
-                        </h3>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
+                <div className="bg-app p-4 rounded-xl border border-line shadow-sm space-y-2.5">
+                    <h3 className="font-bold text-ink text-xs uppercase tracking-wider">
+                        Acciones Avanzadas de Stock
+                    </h3>
+                    <p className="text-xs text-ink-muted leading-relaxed">
                         Operación protegida para inicio de turno o reapertura. Requiere confirmación explícita para evitar errores operativos.
                     </p>
                     <button
                         type="button"
                         onClick={() => setModalReiniciar(true)}
-                        className="w-full py-2.5 px-3 bg-white border border-amber-300 hover:border-red-400 text-slate-700 hover:text-red-600 font-bold text-xs sm:text-sm rounded-lg shadow-sm transition flex items-center justify-center gap-2 min-h-[44px]"
+                        className="w-full py-2.5 px-3 bg-surface border border-warning hover:border-danger text-ink hover:text-danger-ink font-bold text-xs sm:text-sm rounded-lg shadow-sm transition flex items-center justify-center gap-2 min-h-[44px]"
                     >
                         <span>Restablecer todo el inventario a 0</span>
                     </button>

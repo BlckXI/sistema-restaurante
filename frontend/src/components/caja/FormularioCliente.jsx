@@ -30,26 +30,26 @@ const FormularioCliente = memo(function FormularioCliente({
 
     return (
         <div className="w-full">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-2.5 mb-3.5 gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900">Nueva Orden</h2>
+            <div className="flex justify-between items-center border-b border-line pb-2.5 mb-3.5 gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-ink">Nueva Orden</h2>
                 <button
                     type="button"
                     onClick={onAbrirClientesActivos}
-                    className="min-h-[44px] min-w-[44px] bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-lg hover:bg-slate-700 transition"
+                    className="min-h-[44px] min-w-[44px] bg-surface-muted text-ink border border-line text-xs font-bold px-3.5 py-2 rounded-lg hover:bg-app transition"
                 >
                     Clientes Activos
                 </button>
             </div>
 
             {esExtra && (
-                <div className="mb-3 bg-amber-500 text-white px-3 py-2 rounded-lg text-xs flex justify-between items-center shadow-sm">
+                <div className="mb-3 bg-warning text-slate-900 px-3 py-2 rounded-lg text-xs flex justify-between items-center shadow-sm">
                     <span>
                         Modo: <strong>Orden Extra</strong>
                     </span>
                     <button
                         type="button"
                         onClick={onCancelarExtra}
-                        className="min-w-[44px] min-h-[36px] text-white font-bold text-base leading-none px-2 hover:opacity-80"
+                        className="min-w-[44px] min-h-[36px] text-slate-900 font-bold text-base leading-none px-2 hover:opacity-80"
                     >
                         &times;
                     </button>
@@ -58,31 +58,31 @@ const FormularioCliente = memo(function FormularioCliente({
 
             <div className="mb-3">
                 <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs font-bold text-slate-900">Nombre del Cliente *</label>
+                    <label className="text-xs font-bold text-ink">Nombre del Cliente *</label>
                     {faltaCliente && (
-                        <span className="text-[11px] font-semibold text-red-500">Obligatorio (solo letras)</span>
+                        <span className="text-[11px] font-semibold text-danger-ink">Obligatorio (solo letras)</span>
                     )}
                 </div>
                 <input
                     type="text"
                     placeholder="Ej: Juan Pérez"
-                    className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg bg-white text-slate-900 text-sm sm:text-base outline-none transition focus:ring-2 focus:ring-orange-500 ${
+                    className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg bg-surface text-ink text-sm sm:text-base outline-none transition focus:ring-2 focus:ring-brand-accent ${
                         errores.cliente
-                            ? 'border-red-500 bg-red-50/40'
+                            ? 'border-danger bg-danger-soft/40'
                             : !cliente.trim()
-                              ? 'border-red-300'
-                              : 'border-emerald-500'
+                              ? 'border-line'
+                              : 'border-success'
                     }`}
                     value={cliente}
                     onChange={onNombreChange}
                 />
             </div>
 
-            <div className="mb-3.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                <label className="block text-xs font-bold text-slate-500 mb-1">Hora Programada (Opcional)</label>
+            <div className="mb-3.5 bg-app p-2.5 rounded-lg border border-line">
+                <label className="block text-xs font-bold text-ink-muted mb-1">Hora Programada (Opcional)</label>
                 <input
                     type="time"
-                    className="w-full min-h-[44px] px-2.5 py-1.5 border border-slate-300 rounded-md text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full min-h-[44px] px-2.5 py-1.5 border border-line rounded-md text-sm text-ink bg-surface outline-none focus:ring-2 focus:ring-brand-accent"
                     value={horaProgramada}
                     onChange={e => onHoraChange(e.target.value)}
                 />
@@ -90,14 +90,14 @@ const FormularioCliente = memo(function FormularioCliente({
 
             {/* AGRUPACIÓN VISUAL DE ESTADOS DE ENTREGA (PESTAÑAS DE ALTO CONTRASTE >= 44x48px) */}
             <div className="mb-3.5">
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Modalidad de Entrega</label>
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                <label className="block text-xs font-bold text-ink mb-1.5">Modalidad de Entrega</label>
+                <div className="grid grid-cols-2 gap-2 bg-surface-muted p-1.5 rounded-xl border border-line">
                     {MODOS_ENTREGA.map(modo => {
                         const activo = tipoEntregaActual === modo.id;
-                        let claseActiva = 'bg-slate-800 text-white shadow-sm';
-                        if (activo && modo.id === 'domicilio') claseActiva = 'bg-orange-500 text-white shadow-sm';
+                        let claseActiva = 'bg-brand text-white shadow-sm';
+                        if (activo && modo.id === 'domicilio') claseActiva = 'bg-info text-white shadow-sm';
                         if (activo && (modo.id === 'retiro' || modo.id === 'personal')) {
-                            claseActiva = 'bg-sky-500 text-white shadow-sm';
+                            claseActiva = 'bg-brand text-white shadow-sm';
                         }
 
                         return (
@@ -106,7 +106,7 @@ const FormularioCliente = memo(function FormularioCliente({
                                 type="button"
                                 onClick={() => onSeleccionarTipoEntrega && onSeleccionarTipoEntrega(modo.id)}
                                 className={`min-h-[48px] min-w-[44px] px-3 py-2 rounded-lg font-bold text-xs sm:text-sm transition flex items-center justify-center text-center ${
-                                    activo ? claseActiva : 'bg-white text-slate-900 hover:bg-slate-50 border border-slate-200'
+                                    activo ? claseActiva : 'bg-surface text-ink hover:bg-app border border-line'
                                 }`}
                             >
                                 {modo.label}
@@ -117,19 +117,19 @@ const FormularioCliente = memo(function FormularioCliente({
             </div>
 
             {esDomicilio && (
-                <div className="mb-4 p-3.5 rounded-xl bg-orange-50/60 border border-orange-300 space-y-3">
+                <div className="mb-4 p-3.5 rounded-xl bg-info-soft border border-info/30 space-y-3">
                     <div>
                         <div className="flex justify-between items-center mb-1">
-                            <label className="text-xs font-bold text-slate-900">Dirección de entrega *</label>
+                            <label className="text-xs font-bold text-ink">Dirección de entrega *</label>
                             {faltaDireccion && (
-                                <span className="text-[11px] font-bold text-red-500">Requerida para domicilio</span>
+                                <span className="text-[11px] font-bold text-danger-ink">Requerida para domicilio</span>
                             )}
                         </div>
                         <input
                             type="text"
                             placeholder="Calle, referencia o número de casa *"
-                            className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg text-sm text-slate-900 bg-white outline-none transition focus:ring-2 focus:ring-orange-500 ${
-                                faltaDireccion ? 'border-red-500 bg-red-50/30' : 'border-emerald-500'
+                            className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg text-sm text-ink bg-surface outline-none transition focus:ring-2 focus:ring-brand-accent ${
+                                faltaDireccion ? 'border-danger bg-danger-soft/30' : 'border-success'
                             }`}
                             value={direccion}
                             onChange={e => onDireccionChange(e.target.value)}
@@ -137,9 +137,9 @@ const FormularioCliente = memo(function FormularioCliente({
                     </div>
                     <div>
                         <div className="flex justify-between items-center mb-1">
-                            <label className="text-xs font-bold text-slate-900">Teléfono de contacto (8 dígitos) *</label>
+                            <label className="text-xs font-bold text-ink">Teléfono de contacto (8 dígitos) *</label>
                             {faltaTelefono && (
-                                <span className="text-[11px] font-bold text-red-500">
+                                <span className="text-[11px] font-bold text-danger-ink">
                                     Faltan {Math.max(0, 8 - telefono.length)} dígitos
                                 </span>
                             )}
@@ -148,8 +148,8 @@ const FormularioCliente = memo(function FormularioCliente({
                             type="tel"
                             inputMode="numeric"
                             placeholder="Ej: 77778888"
-                            className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg text-sm text-slate-900 bg-white outline-none transition focus:ring-2 focus:ring-orange-500 ${
-                                faltaTelefono ? 'border-red-500 bg-red-50/30' : 'border-emerald-500'
+                            className={`w-full min-h-[48px] px-3.5 py-2.5 border rounded-lg text-sm text-ink bg-surface outline-none transition focus:ring-2 focus:ring-brand-accent ${
+                                faltaTelefono ? 'border-danger bg-danger-soft/30' : 'border-success'
                             }`}
                             value={telefono}
                             onChange={onTelefonoChange}

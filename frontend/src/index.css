@@ -3,8 +3,44 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+    --app: 248 250 252;            /* fondo de la app */
+    --surface: 255 255 255;        /* tarjetas, modales */
+    --surface-muted: 241 245 249;
+    --line: 226 232 240;
+    --ink: 15 23 42;
+    --ink-muted: 71 85 105;
+
+    --brand: 194 65 12;            /* relleno de botones (texto blanco encima) */
+    --brand-hover: 154 52 18;
+    --brand-accent: 249 115 22;    /* iconos, bordes, foco */
+    --brand-text: 194 65 12;       /* naranja usado como texto */
+
+    --success: 4 120 87;   --success-soft: 236 253 245; --success-ink: 6 95 70;
+    --warning: 245 158 11; --warning-soft: 255 251 235; --warning-ink: 146 64 14;
+    --danger: 220 38 38;   --danger-soft: 254 242 242;  --danger-ink: 153 27 27;
+    --info: 37 99 235;     --info-soft: 239 246 255;    --info-ink: 30 64 175;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --app: 11 15 20;
+    --surface: 17 24 39;
+    --surface-muted: 30 41 59;
+    --line: 51 65 85;
+    --ink: 226 232 240;
+    --ink-muted: 148 163 184;
+
+    --brand-text: 251 146 60;      /* el naranja como texto se aclara */
+
+    --success-soft: 6 78 59;   --success-ink: 110 231 183;
+    --warning-soft: 69 26 3;   --warning-ink: 252 211 77;
+    --danger-soft: 69 10 10;   --danger-ink: 252 165 165;
+    --info-soft: 23 37 84;     --info-ink: 147 197 253;
+  }
+
   body {
-    background-color: #0B0F14;
-    color: #E2E8F0;
+    @apply bg-app text-ink antialiased;
   }
 }

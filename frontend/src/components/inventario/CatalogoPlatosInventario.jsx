@@ -142,22 +142,22 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
 
     const obtenerEstiloFila = (plato) => {
         const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
-        if (idEdicion === plato.id) return 'bg-amber-100/70 border-l-4 border-l-amber-500';
-        if (stockReal === 0) return 'bg-red-50/70 hover:bg-red-50/90 border-l-4 border-l-red-500';
-        if (stockReal < 5) return 'bg-amber-50/70 hover:bg-amber-50/90 border-l-4 border-l-amber-400';
-        return 'bg-white hover:bg-slate-50';
+        if (idEdicion === plato.id) return 'bg-warning-soft/80';
+        if (stockReal === 0) return 'bg-danger-soft/50 hover:bg-danger-soft/80';
+        if (stockReal < 5) return 'bg-warning-soft/50 hover:bg-warning-soft/80';
+        return 'bg-surface hover:bg-app';
     };
 
     return (
-        <div className="w-full lg:flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden min-w-0">
+        <div className="w-full lg:flex-1 bg-surface rounded-xl shadow-sm border border-line flex flex-col overflow-hidden min-w-0">
             {/* CABECERA CON BÚSQUEDA Y CATEGORÍAS */}
-            <div className="p-3.5 sm:p-4 bg-slate-800 border-b border-slate-700 space-y-3">
+            <div className="p-3.5 sm:p-4 bg-surface-muted border-b border-line space-y-3">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-base sm:text-lg font-bold text-white">Catálogo e Inventario</h2>
-                        <p className="text-xs text-slate-400">Control de existencias en tiempo real y edición rápida</p>
+                        <h2 className="text-base sm:text-lg font-bold text-ink">Catálogo e Inventario</h2>
+                        <p className="text-xs text-ink-muted">Control de existencias en tiempo real y edición rápida</p>
                     </div>
-                    <span className="text-xs bg-orange-500 text-white px-2.5 py-1 rounded-full font-bold">
+                    <span className="text-xs bg-brand text-white px-2.5 py-1 rounded-full font-bold tabular-nums">
                         {platos.length} platos
                     </span>
                 </div>
@@ -167,7 +167,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                         <input
                             type="text"
                             placeholder="Buscar plato por nombre..."
-                            className="w-full pl-3 pr-8 py-2.5 border border-slate-600 rounded-lg text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                            className="w-full pl-3 pr-8 py-2.5 border border-line rounded-lg text-sm text-ink bg-surface outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px]"
                             value={busqueda}
                             onChange={e => onBusquedaChange(e.target.value)}
                         />
@@ -175,7 +175,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                             <button
                                 type="button"
                                 onClick={() => onBusquedaChange('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-sm w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100"
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink font-bold text-sm w-6 h-6 flex items-center justify-center rounded-full hover:bg-surface-muted"
                                 title="Limpiar búsqueda"
                             >
                                 &times;
@@ -183,7 +183,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                         )}
                     </div>
                     <select
-                        className="px-3 py-2.5 border border-slate-600 rounded-lg text-sm text-slate-900 bg-white sm:w-48 outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px]"
+                        className="px-3 py-2.5 border border-line rounded-lg text-sm text-ink bg-surface sm:w-48 outline-none focus:ring-2 focus:ring-brand-accent min-h-[44px]"
                         value={filtroCategoria}
                         onChange={e => onFiltroCategoriaChange(e.target.value)}
                     >
@@ -201,10 +201,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <button
                         type="button"
                         onClick={() => onFiltroEstadoChange('todos')}
-                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[38px] border ${
                             filtroEstado === 'todos'
-                                ? 'bg-orange-500 text-white shadow-sm'
-                                : 'bg-slate-700/70 text-slate-200 hover:bg-slate-700'
+                                ? 'bg-brand text-white border-brand shadow-sm'
+                                : 'bg-surface text-ink border-line hover:bg-app'
                         }`}
                     >
                         Todos ({conteos.todos})
@@ -212,10 +212,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <button
                         type="button"
                         onClick={() => onFiltroEstadoChange('disponibles')}
-                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[38px] border ${
                             filtroEstado === 'disponibles'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-700/70 text-emerald-300 hover:bg-slate-700'
+                                ? 'bg-success text-white border-success shadow-sm'
+                                : 'bg-surface text-success-ink border-line hover:bg-app'
                         }`}
                     >
                         Disponibles ({conteos.disponibles})
@@ -223,10 +223,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <button
                         type="button"
                         onClick={() => onFiltroEstadoChange('stockBajo')}
-                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[38px] border ${
                             filtroEstado === 'stockBajo'
-                                ? 'bg-amber-500 text-white shadow-sm'
-                                : 'bg-slate-700/70 text-amber-300 hover:bg-slate-700'
+                                ? 'bg-warning text-slate-900 border-warning shadow-sm'
+                                : 'bg-surface text-warning-ink border-line hover:bg-app'
                         }`}
                     >
                         Stock Bajo ({conteos.stockBajo})
@@ -234,10 +234,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <button
                         type="button"
                         onClick={() => onFiltroEstadoChange('agotados')}
-                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[38px] border ${
                             filtroEstado === 'agotados'
-                                ? 'bg-red-600 text-white shadow-sm'
-                                : 'bg-slate-700/70 text-red-300 hover:bg-slate-700'
+                                ? 'bg-danger text-white border-danger shadow-sm'
+                                : 'bg-surface text-danger-ink border-line hover:bg-app'
                         }`}
                     >
                         Agotados ({conteos.agotados})
@@ -245,10 +245,10 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                     <button
                         type="button"
                         onClick={() => onFiltroEstadoChange('porciones')}
-                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[36px] ${
+                        className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition min-h-[38px] border ${
                             filtroEstado === 'porciones'
-                                ? 'bg-sky-600 text-white shadow-sm'
-                                : 'bg-slate-700/70 text-sky-300 hover:bg-slate-700'
+                                ? 'bg-info text-white border-info shadow-sm'
+                                : 'bg-surface text-info-ink border-line hover:bg-app'
                         }`}
                     >
                         Porciones ({conteos.porciones})
@@ -257,17 +257,17 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
             </div>
 
             {/* BARRA INFORMATIVA DE EDICIÓN INLINE */}
-            <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
+            <div className="bg-app px-4 py-2 border-b border-line text-[11px] text-ink-muted flex flex-wrap items-center justify-between gap-2">
                 <span>
                     <strong>Tip de rapidez:</strong> Haz clic sobre cualquier <strong>Precio</strong> o <strong>Stock</strong> para editarlo directamente sin abrir formularios.
                 </span>
-                <span className="font-semibold text-slate-700">Enter para guardar / Esc para cancelar</span>
+                <span className="font-semibold text-ink">Enter para guardar / Esc para cancelar</span>
             </div>
 
             {/* VISTA TARJETAS EN MÓVIL (< sm) */}
-            <div className="sm:hidden divide-y divide-slate-100 overflow-y-auto max-h-[65vh]">
+            <div className="sm:hidden divide-y divide-line overflow-y-auto max-h-[65vh]">
                 {platos.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 text-sm">No se encontraron platos con los filtros aplicados.</div>
+                    <div className="p-8 text-center text-ink-muted text-sm">No se encontraron platos con los filtros aplicados.</div>
                 ) : (
                     platos.map(plato => {
                         const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
@@ -283,15 +283,15 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                             >
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="min-w-0">
-                                        <p className="font-bold text-slate-900 text-sm break-words flex items-center gap-1.5 flex-wrap">
+                                        <p className="font-bold text-ink text-sm break-words flex items-center gap-1.5 flex-wrap">
                                             <span>{plato.nombre}</span>
                                             {plato.id_padre && (
-                                                <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-bold border border-sky-200">
+                                                <span className="text-[10px] bg-info-soft text-info-ink px-1.5 py-0.5 rounded font-bold border border-info/30">
                                                     {plato.nombrePadre ? `PORCIÓN DE: ${plato.nombrePadre}` : 'PORCIÓN'}
                                                 </span>
                                             )}
                                         </p>
-                                        <span className="inline-block text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-1">
+                                        <span className="inline-block text-[11px] text-ink-muted bg-surface-muted px-2 py-0.5 rounded mt-1">
                                             {plato.categoria}
                                         </span>
                                     </div>
@@ -300,12 +300,12 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                     <div className="text-right shrink-0">
                                         {editandoPrecio ? (
                                             <div className="flex items-center gap-1">
-                                                <span className="text-xs font-bold text-slate-500">$</span>
+                                                <span className="text-xs font-bold text-ink-muted">$</span>
                                                 <input
                                                     type="text"
                                                     inputMode="decimal"
                                                     autoFocus
-                                                    className="w-16 px-1.5 py-1 border-2 border-orange-500 rounded text-right font-bold text-sm outline-none bg-white text-slate-900"
+                                                    className="w-16 px-1.5 py-1 border-2 border-brand-accent rounded text-right font-bold text-sm outline-none bg-surface text-ink tabular-nums"
                                                     value={edicionInline.valorActual}
                                                     onChange={e => {
                                                         if (esEntradaMontoPositivo(e.target.value)) {
@@ -320,27 +320,27 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             <button
                                                 type="button"
                                                 onClick={() => iniciarEdicionInline(plato, 'precio')}
-                                                className="font-black text-slate-900 text-base hover:text-orange-600 transition flex items-center justify-end gap-1"
+                                                className="font-black text-ink text-base hover:text-brand-text transition flex items-center justify-end gap-1 tabular-nums"
                                                 title="Toca para editar precio inline"
                                             >
                                                 <span>${plato.precio.toFixed(2)}</span>
-                                                <span className="text-[10px] text-slate-400 font-normal">✎</span>
+                                                <span className="text-[10px] text-ink-muted font-normal">✎</span>
                                             </button>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* STOCK INLINE Y ALERTAS MÓVIL */}
-                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-line">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         {editandoStock ? (
                                             <div className="flex items-center gap-1">
-                                                <span className="text-xs font-bold text-slate-500">Stock:</span>
+                                                <span className="text-xs font-bold text-ink-muted">Stock:</span>
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
                                                     autoFocus
-                                                    className="w-16 px-1.5 py-1 border-2 border-orange-500 rounded text-center font-bold text-sm outline-none bg-white text-slate-900"
+                                                    className="w-16 px-1.5 py-1 border-2 border-brand-accent rounded text-center font-bold text-sm outline-none bg-surface text-ink tabular-nums"
                                                     value={edicionInline.valorActual}
                                                     onChange={e => {
                                                         if (esEntradaEnteroPositivo(e.target.value)) {
@@ -355,12 +355,12 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             <button
                                                 type="button"
                                                 onClick={() => iniciarEdicionInline(plato, 'stock')}
-                                                className={`text-xs font-bold px-2.5 py-1 rounded-full transition flex items-center gap-1 min-h-[32px] ${
+                                                className={`text-xs font-bold px-2.5 py-1 rounded-full transition flex items-center gap-1 min-h-[34px] tabular-nums ${
                                                     esAgotado
-                                                        ? 'bg-red-500 text-white shadow-sm'
+                                                        ? 'bg-danger text-white shadow-sm'
                                                         : esBajo
-                                                          ? 'bg-amber-500 text-white shadow-sm'
-                                                          : 'bg-emerald-500 text-white shadow-sm'
+                                                          ? 'bg-warning text-slate-900 shadow-sm'
+                                                          : 'bg-success text-white shadow-sm'
                                                 }`}
                                                 title="Toca para editar stock inline"
                                             >
@@ -382,7 +382,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                 type="button"
                                                 onClick={() => ponerPlatoEnCero(plato)}
                                                 disabled={guardandoInlineId === plato.id}
-                                                className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-red-100 text-slate-700 hover:text-red-600 transition min-h-[32px]"
+                                                className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-surface-muted border border-line hover:bg-danger-soft text-ink hover:text-danger-ink transition min-h-[34px]"
                                                 title="Poner stock en 0 inmediatamente"
                                             >
                                                 Poner en 0
@@ -390,12 +390,12 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                         )}
 
                                         {guardandoInlineId === plato.id && (
-                                            <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                            <span className="w-3.5 h-3.5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
                                         )}
                                     </div>
 
                                     {/* AUDITORÍA RÁPIDA MÓVIL */}
-                                    <div className="text-[11px] text-slate-500 text-right">
+                                    <div className="text-[11px] text-ink-muted text-right">
                                         <span title={formatearFechaCompleta(plato.updated_at)}>
                                             {formatearTiempoRelativo(plato.updated_at)}
                                         </span>
@@ -406,14 +406,14 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                     <button
                                         type="button"
                                         onClick={() => onPrepararEdicion(plato)}
-                                        className="flex-1 text-center text-orange-600 font-bold text-xs py-2.5 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 min-h-[44px]"
+                                        className="flex-1 text-center text-brand-text font-bold text-xs py-2.5 bg-surface-muted hover:bg-app rounded-lg border border-line min-h-[44px]"
                                     >
                                         Editar Ficha
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => onSolicitarEliminar(plato.id, 'plato', plato.nombre)}
-                                        className="flex-1 text-center text-red-500 font-bold text-xs py-2.5 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 min-h-[44px]"
+                                        className="flex-1 text-center text-danger-ink font-bold text-xs py-2.5 bg-danger-soft hover:opacity-90 rounded-lg border border-danger/30 min-h-[44px]"
                                     >
                                         Eliminar
                                     </button>
@@ -427,7 +427,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
             {/* VISTA TABLA EN ESCRITORIO (>= sm) CON SCROLL ENCAPSULADO */}
             <div className="hidden sm:block overflow-x-auto overflow-y-auto flex-1">
                 <table className="w-full text-left border-collapse min-w-[620px]">
-                    <thead className="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200">
+                    <thead className="bg-app text-ink-muted sticky top-0 z-10 border-b border-line">
                         <tr>
                             <th className="p-3 text-xs font-bold uppercase">Producto</th>
                             <th className="p-3 text-xs font-bold uppercase">Precio (Click inline)</th>
@@ -436,7 +436,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                             <th className="p-3 text-xs font-bold uppercase text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
+                    <tbody className="divide-y divide-line text-sm">
                         {platos.map(plato => {
                             const stockReal = plato.stockEfectivo ?? plato.stock ?? 0;
                             const esAgotado = stockReal === 0;
@@ -450,30 +450,30 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                     key={plato.id}
                                     className={`transition-colors ${obtenerEstiloFila(plato)}`}
                                 >
-                                    <td className="p-3 font-medium text-slate-900">
+                                    <td className="p-3 font-medium text-ink">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-bold">{plato.nombre}</span>
                                             {plato.id_padre && (
-                                                <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-bold border border-sky-200">
+                                                <span className="text-[10px] bg-info-soft text-info-ink px-1.5 py-0.5 rounded font-bold border border-info/30">
                                                     {plato.nombrePadre ? `PORCIÓN DE: ${plato.nombrePadre}` : 'PORCIÓN'}
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="inline-block text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-1">
+                                        <span className="inline-block text-xs text-ink-muted bg-surface-muted px-2 py-0.5 rounded mt-1">
                                             {plato.categoria}
                                         </span>
                                     </td>
 
                                     {/* PRECIO INLINE */}
-                                    <td className="p-3 font-bold text-slate-900 whitespace-nowrap">
+                                    <td className="p-3 font-bold text-ink whitespace-nowrap tabular-nums">
                                         {editandoPrecio ? (
                                             <div className="flex items-center gap-1">
-                                                <span className="text-sm font-bold text-slate-500">$</span>
+                                                <span className="text-sm font-bold text-ink-muted">$</span>
                                                 <input
                                                     type="text"
                                                     inputMode="decimal"
                                                     autoFocus
-                                                    className="w-20 px-2 py-1 border-2 border-orange-500 rounded text-left font-bold text-sm outline-none bg-white text-slate-900 shadow-sm"
+                                                    className="w-20 px-2 py-1 border-2 border-brand-accent rounded text-left font-bold text-sm outline-none bg-surface text-ink shadow-sm"
                                                     value={edicionInline.valorActual}
                                                     onChange={e => {
                                                         if (esEntradaMontoPositivo(e.target.value)) {
@@ -488,11 +488,11 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             <button
                                                 type="button"
                                                 onClick={() => iniciarEdicionInline(plato, 'precio')}
-                                                className="group inline-flex items-center gap-1.5 px-2 py-1 rounded hover:bg-orange-50 hover:text-orange-700 transition"
+                                                className="group inline-flex items-center gap-1.5 px-2 py-1 rounded hover:bg-surface-muted hover:text-brand-text transition"
                                                 title="Haz clic para modificar el precio de forma rápida"
                                             >
                                                 <span>${plato.precio.toFixed(2)}</span>
-                                                <span className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 group-hover:text-orange-600 transition">
+                                                <span className="opacity-0 group-hover:opacity-100 text-xs text-ink-muted group-hover:text-brand-text transition">
                                                     ✎
                                                 </span>
                                             </button>
@@ -500,7 +500,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                     </td>
 
                                     {/* STOCK INLINE */}
-                                    <td className="p-3 whitespace-nowrap">
+                                    <td className="p-3 whitespace-nowrap tabular-nums">
                                         <div className="inline-flex items-center gap-1.5">
                                             {editandoStock ? (
                                                 <div className="flex items-center gap-1.5">
@@ -508,7 +508,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                         type="text"
                                                         inputMode="numeric"
                                                         autoFocus
-                                                        className="w-16 px-2 py-1 border-2 border-orange-500 rounded text-center font-bold text-sm outline-none bg-white text-slate-900 shadow-sm"
+                                                        className="w-16 px-2 py-1 border-2 border-brand-accent rounded text-center font-bold text-sm outline-none bg-surface text-ink shadow-sm"
                                                         value={edicionInline.valorActual}
                                                         onChange={e => {
                                                             if (esEntradaEnteroPositivo(e.target.value)) {
@@ -523,12 +523,12 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                 <button
                                                     type="button"
                                                     onClick={() => iniciarEdicionInline(plato, 'stock')}
-                                                    className={`group inline-flex items-center gap-1.5 font-bold px-2.5 py-1 rounded-full text-xs text-white transition ${
+                                                    className={`group inline-flex items-center gap-1.5 font-bold px-2.5 py-1 rounded-full text-xs transition ${
                                                         esAgotado
-                                                            ? 'bg-red-500 hover:bg-red-600'
+                                                            ? 'bg-danger hover:opacity-90 text-white'
                                                             : esBajo
-                                                              ? 'bg-amber-500 hover:bg-amber-600'
-                                                              : 'bg-emerald-500 hover:bg-emerald-600'
+                                                              ? 'bg-warning hover:opacity-90 text-slate-900'
+                                                              : 'bg-success hover:opacity-90 text-white'
                                                     }`}
                                                     title="Haz clic para modificar el stock de forma rápida"
                                                 >
@@ -548,7 +548,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                                     type="button"
                                                     onClick={() => ponerPlatoEnCero(plato)}
                                                     disabled={guardandoInlineId === plato.id}
-                                                    className="text-[11px] font-bold px-2 py-1 rounded bg-slate-200 hover:bg-red-100 text-slate-700 hover:text-red-600 transition"
+                                                    className="text-[11px] font-bold px-2 py-1 rounded bg-surface-muted border border-line hover:bg-danger-soft text-ink hover:text-danger-ink transition"
                                                     title="Poner stock en 0 inmediatamente"
                                                 >
                                                     Poner en 0
@@ -556,19 +556,19 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             )}
 
                                             {guardandoInlineId === plato.id && (
-                                                <span className="inline-block w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin align-middle" />
+                                                <span className="inline-block w-3.5 h-3.5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin align-middle" />
                                             )}
                                         </div>
                                     </td>
 
                                     {/* AUDITORÍA Y TRAZABILIDAD */}
-                                    <td className="p-3 text-xs text-slate-500 whitespace-nowrap relative">
+                                    <td className="p-3 text-xs text-ink-muted whitespace-nowrap relative">
                                         <div className="flex items-center gap-1.5">
                                             <span>{formatearTiempoRelativo(plato.updated_at)}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => setAuditoriaVisibleId(viendoAuditoria ? null : plato.id)}
-                                                className="w-5 h-5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-bold"
+                                                className="w-5 h-5 rounded-full bg-surface-muted hover:bg-app text-ink border border-line flex items-center justify-center text-[10px] font-bold"
                                                 title="Ver detalle de auditoría"
                                             >
                                                 i
@@ -576,24 +576,24 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                         </div>
 
                                         {viendoAuditoria && (
-                                            <div className="absolute left-3 top-10 z-20 bg-slate-900 text-white rounded-lg p-3 shadow-xl text-xs w-64 border border-slate-700 animate-in fade-in duration-100">
-                                                <div className="flex justify-between items-center mb-1 pb-1 border-b border-slate-700">
-                                                    <span className="font-bold text-orange-400">Auditoría de Stock</span>
+                                            <div className="absolute left-3 top-10 z-20 bg-surface text-ink rounded-lg p-3 shadow-xl text-xs w-64 border border-line animate-in fade-in duration-100">
+                                                <div className="flex justify-between items-center mb-1 pb-1 border-b border-line">
+                                                    <span className="font-bold text-brand-text">Auditoría de Stock</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => setAuditoriaVisibleId(null)}
-                                                        className="text-slate-400 hover:text-white"
+                                                        className="text-ink-muted hover:text-ink"
                                                     >
                                                         &times;
                                                     </button>
                                                 </div>
-                                                <p className="text-[11px] text-slate-300">
+                                                <p className="text-[11px] text-ink">
                                                     <strong>Motivo:</strong> {plato.ultimo_cambio || 'Ajuste manual'}
                                                 </p>
-                                                <p className="text-[11px] text-slate-300 mt-1">
+                                                <p className="text-[11px] text-ink mt-1">
                                                     <strong>Fecha:</strong> {formatearFechaCompleta(plato.updated_at)}
                                                 </p>
-                                                <p className="text-[11px] text-slate-400 mt-1">
+                                                <p className="text-[11px] text-ink-muted mt-1 tabular-nums">
                                                     Stock efectivo: {stockReal} | Precio: ${plato.precio.toFixed(2)}
                                                 </p>
                                             </div>
@@ -606,14 +606,14 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                                             <button
                                                 type="button"
                                                 onClick={() => onPrepararEdicion(plato)}
-                                                className="text-orange-600 hover:bg-orange-100 font-bold text-xs px-3 py-1.5 bg-orange-50 rounded-lg transition min-h-[36px]"
+                                                className="text-brand-text hover:bg-app font-bold text-xs px-3 py-1.5 bg-surface-muted border border-line rounded-lg transition min-h-[36px]"
                                             >
                                                 Editar Ficha
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onSolicitarEliminar(plato.id, 'plato', plato.nombre)}
-                                                className="text-red-500 hover:bg-red-100 font-bold text-xs px-3 py-1.5 bg-red-50 rounded-lg transition min-h-[36px]"
+                                                className="text-danger-ink hover:opacity-90 font-bold text-xs px-3 py-1.5 bg-danger-soft border border-danger/30 rounded-lg transition min-h-[36px]"
                                             >
                                                 Eliminar
                                             </button>
@@ -624,7 +624,7 @@ const CatalogoPlatosInventario = memo(function CatalogoPlatosInventario({
                         })}
                         {platos.length === 0 && (
                             <tr>
-                                <td colSpan="5" className="p-8 text-center text-slate-500">
+                                <td colSpan="5" className="p-8 text-center text-ink-muted">
                                     No se encontraron platos con los filtros aplicados.
                                 </td>
                             </tr>

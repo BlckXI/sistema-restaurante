@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
@@ -8,6 +8,18 @@
     <meta name="description" content="Sistema de punto de venta, cocina, inventario, entregas y reportes financieros para el restaurante D' La Casa." />
     <meta property="og:title" content="D' La Casa" />
     <meta property="og:description" content="Sistema de punto de venta, cocina, inventario, entregas y reportes financieros para el restaurante D' La Casa." />
+    <script>
+      // Duplica a propósito la lógica de useTema: debe ejecutarse antes de montar React.
+      (function () {
+        try {
+          var t = localStorage.getItem('dlacasa_tema');
+          var sistemaOscuro = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (t === 'oscuro' || ((t === null || t === 'sistema') && sistemaOscuro)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

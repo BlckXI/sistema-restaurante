@@ -30,24 +30,24 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+    <div className="min-h-screen flex items-center justify-center bg-app p-4">
+      <div className="bg-surface p-8 rounded-2xl shadow-xl w-full max-w-md border border-line">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center font-black text-white text-2xl shadow-md mx-auto mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center font-black text-white text-2xl shadow-md mx-auto mb-3">
             D
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">D&apos; La Casa</h1>
-          <p className="text-slate-500 text-sm mt-1">Acceso exclusivo para personal</p>
+          <h1 className="text-2xl font-bold text-ink">D&apos; La Casa</h1>
+          <p className="text-ink-muted text-sm mt-1">Acceso exclusivo para personal</p>
         </div>
         {mensajeError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500 text-white text-sm font-medium text-center">
+          <div className="mb-4 p-3 rounded-lg bg-danger-soft text-danger-ink border border-danger/30 text-sm font-semibold text-center">
             {mensajeError}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label htmlFor="login-email" className="block text-sm font-bold text-slate-900 mb-1">
+            <label htmlFor="login-email" className="block text-sm font-bold text-ink mb-1">
               Correo
             </label>
             <input
@@ -57,14 +57,14 @@ export default function Login() {
               autoComplete="username"
               required
               placeholder="admin@restaurante.com"
-              className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full p-3 border border-line rounded-lg bg-surface text-ink placeholder-ink-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-accent"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div>
-            <label htmlFor="login-password" className="block text-sm font-bold text-slate-900 mb-1">
+            <label htmlFor="login-password" className="block text-sm font-bold text-ink mb-1">
               Contraseña
             </label>
             <input
@@ -74,7 +74,7 @@ export default function Login() {
               autoComplete="current-password"
               required
               placeholder="••••••••"
-              className="w-full p-3 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full p-3 border border-line rounded-lg bg-surface text-ink placeholder-ink-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-accent"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -83,7 +83,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 transition shadow-md"
+            className="w-full min-h-[48px] bg-brand text-white font-bold py-3 rounded-xl hover:bg-brand-hover transition shadow-md disabled:opacity-60"
           >
             {cargando ? 'Verificando...' : 'ENTRAR AL SISTEMA'}
           </button>

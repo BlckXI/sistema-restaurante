@@ -328,3 +328,14 @@ test('Panel de repartidor se limpia automáticamente a las 7:00 PM hora de El Sa
     assert.deepEqual(historialEnCorte, []);
 });
 
+test('esTemaOscuro resuelve correctamente la preferencia manual (claro/oscuro) y automática del sistema', async () => {
+    const { esTemaOscuro } = await import('../frontend/src/hooks/useTema.js');
+
+    assert.equal(esTemaOscuro('oscuro', false), true);
+    assert.equal(esTemaOscuro('oscuro', true), true);
+    assert.equal(esTemaOscuro('claro', false), false);
+    assert.equal(esTemaOscuro('claro', true), false);
+    assert.equal(esTemaOscuro('sistema', true), true);
+    assert.equal(esTemaOscuro('sistema', false), false);
+});
+
